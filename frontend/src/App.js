@@ -1,0 +1,170 @@
+// frontend/src/App.js
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import './App.css';
+
+// Context Providers
+import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
+import { useAuth } from './hooks/useAuth';
+
+// Pages publiques
+import Home from './pages/Home';
+import About from './pages/About';
+import Feedback from './pages/Feedback';
+import Login from './pages/Login';
+import Register from './pages/Register';
+
+// Pages Admin
+import AdminDashboard from './pages/admin/AdminDashboard';
+import UserManagement from './pages/admin/UserManagement';
+import SystemSettings from './pages/admin/SystemSettings';
+
+// Layout components
+import PublicLayout from './components/layout/PublicLayout';
+import AdminLayout from './components/layout/AdminLayout';
+
+// Protected Route Component
+const ProtectedRoute = ({ children, requiredRole }) => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (requiredRole && user.role !== requiredRole) {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
+};
+
+// App Routes Component (à l'intérieur des providers)
+const AppRoutes = () => {
+  return (
+    <Router>
+      <div className="App">
+        <Routes>
+          {/* Routes publiques */}
+          <Route 
+            path="/" 
+            element={
+              <PublicLayout>
+                <Home />
+              </PublicLayout>
+            } 
+          />
+          <Route 
+            path="/about" 
+            element={
+              <PublicLayout>
+                <About />
+              </PublicLayout>
+            } 
+          />
+          <Route 
+            path="/feedback" 
+            element={
+              <PublicLayout>
+                <Feedback />
+              </PublicLayout>
+            } 
+          />
+          <Route 
+            path="/login" 
+            element={
+              <PublicLayout>
+                <Login />
+              </PublicLayout>
+            } 
+          />
+          <Route 
+            path="/register" 
+            element={
+              <PublicLayout>
+                <Register />
+              </PublicLayout>
+            } 
+          />
+
+          {/* Routes Admin protégées */}
+          <Route 
+            path="/admin" 
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminLayout>
+                  <AdminDashboard />
+                </AdminLayout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/users" 
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminLayout>
+                  <UserManagement />
+                </AdminLayout>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/settings" 
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminLayout>
+                  <SystemSettings />
+                </AdminLayout>
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* Routes utilisateur protégées (optionnel) */}
+          <Route 
+            path="/dashboard" 
+            element={
+              <ProtectedRoute>
+                <PublicLayout>
+                  <div className="container mx-auto px-4 py-8">
+                    <h1 className="text-3xl font-bold text-gray-800 mb-6">
+                      Tableau de Bord Patient
+                    </h1>
+                    <div className="bg-white rounded-lg shadow-md p-6">
+                      <p className="text-gray-600">
+                        Bienvenue dans votre espace personnel.
+                      </p>
+                    </div>
+                  </div>
+                </PublicLayout>
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* Route par défaut - redirection vers l'accueil */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
+    </Router>
+  );
+};
+
+// Composant principal App avec les providers
+const App = () => {
+  return (
+    <ThemeProvider>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </ThemeProvider>
+  );
+};
+
+export default App;
