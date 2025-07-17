@@ -1,85 +1,3 @@
-// // middleware/authMiddleware.js
-// const jwt = require('jsonwebtoken');
-// const pool = require('../config/database');
-
-// const authMiddleware = async (req, res, next) => {
-//   console.log('🔍 authMiddleware - Starting authentication check...');
-  
-//   try {
-//     // Récupérer le token depuis les headers
-//     const authHeader = req.headers.authorization;
-//     console.log('📋 Authorization header:', authHeader);
-    
-//     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-//       console.log('❌ No valid authorization header');
-//       return res.status(401).json({
-//         success: false,
-//         message: 'Token manquant ou invalide'
-//       });
-//     }
-
-//     const token = authHeader.substring(7); // Supprimer "Bearer "
-//     console.log('🎫 Token extracted:', token.substring(0, 50) + '...');
-
-//     // Vérifier le token
-//     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-//     console.log('🔓 Token decoded:', decoded);
-
-//     // Récupérer l'utilisateur depuis la base de données
-//     const userQuery = 'SELECT id_u, nom, prenom, email, role FROM Utilisateur WHERE id_u = $1';
-//     const userResult = await pool.query(userQuery, [decoded.userId]);
-    
-//     console.log('🔍 User query result:', userResult.rows);
-
-//     if (userResult.rows.length === 0) {
-//       console.log('❌ User not found in database');
-//       return res.status(401).json({
-//         success: false,
-//         message: 'Utilisateur non trouvé'
-//       });
-//     }
-
-//     const user = userResult.rows[0];
-//     console.log('👤 User found:', user);
-
-//     // Ajouter l'utilisateur à la requête avec toutes les propriétés nécessaires
-//     req.user = {
-//       id: user.id_u,
-//       userId: user.id_u, // Add this for compatibility
-//       nom: user.nom,
-//       prenom: user.prenom,
-//       email: user.email,
-//       role: user.role
-//     };
-
-//     console.log('✅ Authentication successful, user added to request:', req.user);
-//     next();
-
-//   } catch (error) {
-//     console.error('❌ Auth middleware error:', error);
-    
-//     if (error.name === 'JsonWebTokenError') {
-//       return res.status(401).json({
-//         success: false,
-//         message: 'Token invalide'
-//       });
-//     }
-    
-//     if (error.name === 'TokenExpiredError') {
-//       return res.status(401).json({
-//         success: false,
-//         message: 'Token expiré'
-//       });
-//     }
-
-//     return res.status(500).json({
-//       success: false,
-//       message: 'Erreur d\'authentification'
-//     });
-//   }
-// };
-
-// module.exports = authMiddleware;
 // backend/middleware/authMiddleware.js
 const jwt = require('jsonwebtoken');
 const pool = require('../config/database');
@@ -118,8 +36,9 @@ const authMiddleware = async (req, res, next) => {
     const decoded = jwt.verify(token, jwtSecret);
     console.log('✅ Token decoded successfully:', decoded);
 
-    // Vérifier que l'utilisateur existe toujours dans la base de données
-    const userQuery = 'SELECT id, nom, prenom, email, role FROM users WHERE id = $1';
+    // CORRECTION 1: Utiliser la bonne table "Utilisateur" au lieu de "users"
+    // CORRECTION 2: Utiliser les bons noms de colonnes
+    const userQuery = 'SELECT id_u as id, nom, prenom, email, role FROM Utilisateur WHERE id_u = $1';
     const result = await pool.query(userQuery, [decoded.userId]);
 
     if (result.rows.length === 0) {

@@ -1,8 +1,20 @@
 // backend/server.js
+
+// Ajoutez ceci tout en haut de server.js
+const fs = require('fs');
+const path = require('path');
+
+console.log('🔍 Current directory:', process.cwd());
+console.log('🔍 .env file exists:', fs.existsSync('.env'));
+console.log('🔍 .env file path:', path.resolve('.env'));
+
+require('dotenv').config();
+console.log('🔍 All env vars loaded:', Object.keys(process.env).filter(key => key.startsWith('JWT')));
+
+
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
-require('dotenv').config();
+
 
 const app = express();
 const PORT = process.env.PORT || 5000;

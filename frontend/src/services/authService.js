@@ -2,101 +2,140 @@
 import api from './api';
 
 export const authService = {
-  async login(email, password, twoFactorCode = null) {
+  login: async (email, password) => {
     try {
-      const response = await api.post('/auth/login', {
-        email,
-        password,
-        twoFactorCode
+      console.log('🔐 AuthService: Attempting login for', email);
+      
+      const response = await api.post('/auth/login', { 
+        email, 
+        password 
       });
-     console.log('🧾 login response DATA content:', response.data.data);
-
-      const { token, user } = response.data.data;
       
-      // Stocker le token et l'utilisateur
-      localStorage.setItem('authToken', token);
-      localStorage.setItem('user', JSON.stringify(user));
+      console.log('🧾 login response DATA content:', response.data);
       
-      return { token, user };
+      // Vérifier que la réponse contient les données attendues
+      if (!response.data || !response.data.success) {
+        throw new Error('Réponse de connexion invalide - pas de succès');
+      }
+      
+      // Les données sont dans response.data.data
+      const responseData = response.data.data;
+      
+      if (!responseData || !responseData.user || !responseData.token) {
+        console.error('❌ Structure de réponse invalide:', response.data);
+        throw new Error('Réponse de connexion invalide - données manquantes');
+      }
+      
+      const { user, token } = responseData;
+      
+      // Validation supplémentaire
+      if (!user.id || !user.email || !user.role) {
+        console.error('❌ Données utilisateur invalides:', user);
+        throw new Error('Données utilisateur invalides');
+      }
+      
+      if (!token || typeof token !== 'string') {
+        console.error('❌ Token invalide:', token);
+        throw new Error('Token invalide');
+      }
+      
+      console.log('✅ AuthService: Login successful');
+      console.log('👤 User:', user);
+      console.log('🔑 Token length:', token.length);
+      
+      return { user, token };
     } catch (error) {
-      console.error('Auth service login error:', error);
+      console.error('❌ AuthService: Login failed:', error);
       
-      // Gestion améliorée des erreurs
-      if (error.response?.data) {
-        const errorData = error.response.data;
+      // Gestion des erreurs spécifiques
+      if (error.response) {
+        const status = error.response.status;
+        const data = error.response.data;
         
-        // Si c'est une erreur de validation avec des détails
-        if (errorData.errors && Array.isArray(errorData.errors)) {
-          throw new Error(errorData.errors.join(', '));
-        }
-        
-        // Si c'est une erreur générale
-        if (errorData.message) {
-          throw new Error(errorData.message);
+        if (status === 401) {
+          throw new Error('Email ou mot de passe incorrect');
+        } else if (status === 422) {
+          throw new Error(data.message || 'Données invalides');
+        } else if (status >= 500) {
+          throw new Error('Erreur serveur. Veuillez réessayer plus tard.');
         }
       }
       
-      // Erreur par défaut
-      throw new Error('Erreur lors de la connexion');
+      throw error;
     }
   },
 
-  async register(userData) {
+  register: async (userData) => {
     try {
+      console.log('📝 AuthService: Attempting registration');
+      
       const response = await api.post('/auth/register', userData);
-      return response.data.data;
-    } catch (error) {
-      console.error('Auth service register error:', error);
       
-      if (error.response?.data) {
-        const errorData = error.response.data;
+      console.log('✅ AuthService: Registration successful');
+      
+      // Adapter selon la structure de réponse du serveur
+      return response.data.success ? response.data.data : response.data;
+    } catch (error) {
+      console.error('❌ AuthService: Registration failed:', error);
+      
+      if (error.response) {
+        const status = error.response.status;
+        const data = error.response.data;
         
-        if (errorData.errors && Array.isArray(errorData.errors)) {
-          throw new Error(errorData.errors.join(', '));
-        }
-        
-        if (errorData.message) {
-          throw new Error(errorData.message);
+        if (status === 409) {
+          throw new Error('Un utilisateur avec cet email existe déjà');
+        } else if (status === 422) {
+          throw new Error(data.message || 'Données invalides');
         }
       }
       
-      throw new Error('Erreur lors de l\'inscription');
+      throw error;
     }
   },
 
-  async getProfile() {
+  logout: async () => {
     try {
-      const response = await api.get('/auth/profile');
-      return response.data.data.user;
+      console.log('🔓 AuthService: Attempting logout');
+      
+      // Appel à l'API pour invalider le token côté serveur (optionnel)
+      await api.post('/auth/logout');
+      
+      console.log('✅ AuthService: Logout successful');
     } catch (error) {
-      console.error('Auth service profile error:', error);
-      throw error.response?.data || new Error('Erreur lors de la récupération du profil');
+      console.error('⚠️ AuthService: Logout error (non-critical):', error);
+      // Ne pas lever d'erreur car le logout local peut continuer
     }
   },
 
-  async generateTwoFactorQR(email) {
+  getCurrentUser: async () => {
     try {
-      const response = await api.post('/auth/generate-2fa', { email });
-      return response.data.data;
+      console.log('👤 AuthService: Fetching current user');
+      
+      const response = await api.get('/auth/me');
+      
+      console.log('✅ AuthService: Current user fetched');
+      
+      // Adapter selon la structure de réponse du serveur
+      return response.data.success ? response.data.data : response.data;
     } catch (error) {
-      console.error('Auth service 2FA error:', error);
-      throw error.response?.data || new Error('Erreur lors de la génération du QR code');
+      console.error('❌ AuthService: Failed to fetch current user:', error);
+      throw error;
     }
   },
 
-  async logout() {
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('user');
-  },
-
-  // Vérifier si l'utilisateur est connecté
-  isAuthenticated() {
-    return !!localStorage.getItem('authToken');
-  },
-
-  // Récupérer l'utilisateur depuis le localStorage
-  getCurrentUser() {
-    const user = localStorage.getItem('user');
-    return user ? JSON.parse(user) : null;
+  refreshToken: async () => {
+    try {
+      console.log('🔄 AuthService: Refreshing token');
+      
+      const response = await api.post('/auth/refresh');
+      
+      console.log('✅ AuthService: Token refreshed');
+      
+      // Adapter selon la structure de réponse du serveur
+      return response.data.success ? response.data.data : response.data;
+    } catch (error) {
+      console.error('❌ AuthService: Failed to refresh token:', error);
+      throw error;
+    }
   }
 };

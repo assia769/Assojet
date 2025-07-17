@@ -16,21 +16,24 @@ const UserManagement = () => {
   }, [currentPage, selectedRole, searchTerm]);
 
   const fetchUsers = async () => {
-    try {
-      setLoading(true);
-      const response = await adminService.getUsers({
-        page: currentPage,
-        role: selectedRole !== 'all' ? selectedRole : undefined,
-        search: searchTerm
-      });
-      setUsers(response.data.users);
-      setTotalPages(response.data.totalPages);
-    } catch (error) {
-      console.error('Error fetching users:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  try {
+    setLoading(true);
+    const response = await adminService.getUsers({
+      page: currentPage,
+      role: selectedRole !== 'all' ? selectedRole : undefined,
+      search: searchTerm
+    });
+
+    
+    setUsers(response.users);
+    setTotalPages(response.pagination.totalPages);
+
+  } catch (error) {
+    console.error('Error fetching users:', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleDeleteUser = async (userId) => {
     if (window.confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
