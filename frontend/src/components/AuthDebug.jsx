@@ -30,7 +30,7 @@ const AuthDebug = () => {
   const testAdminAPI = async () => {
     try {
       console.log('🧪 Testing admin API...');
-      const response = await api.get('/admin/dashboard/stats');
+      const response = await api.get('/admin/settings/dashboard/stats');
       setAdminTestResult({
         success: true,
         data: response.data

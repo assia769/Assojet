@@ -83,27 +83,58 @@ const getDashboardStats = async (req, res) => {
       LIMIT 10
     `);
     console.log('✅ recentActivity:', recentActivity.rows);
+ 
+// 30 derniers jours de consultations groupés par jour
+      const dailyConsultations = await pool.query(`
+        SELECT 
+          TO_CHAR(date_c, 'YYYY-MM-DD') as date,
+          COUNT(*) as total
+        FROM Consultation
+        WHERE date_c >= NOW() - INTERVAL '30 days'
+        GROUP BY date
+        ORDER BY date ASC
+      `);
+
+
+      // 30 derniers jours de revenus groupés par jour
+      const dailyRevenus = await pool.query(`
+        SELECT 
+          TO_CHAR(date_f, 'YYYY-MM-DD') as date,
+          COALESCE(SUM(prix), 0) as montant
+        FROM Facture
+        WHERE date_f >= NOW() - INTERVAL '30 days'
+        GROUP BY date
+        ORDER BY date ASC
+      `);
+
+
 
     const responseData = {
-      success: true,
-      data: {
-        userStats: userStats.rows,
-        rdvStats: rdvStats.rows,
-        consultationStats: consultationStats.rows[0] || {
-          total_consultations: 0,
-          consultations_aujourdhui: 0,
-          consultations_30j: 0
-        },
-        financialStats: financialStats.rows[0] || {
-          revenus_total: 0,
-          revenus_aujourdhui: 0,
-          revenus_30j: 0,
-          factures_payees: 0,
-          factures_en_attente: 0
-        },
-        recentActivity: recentActivity.rows
-      }
-    };
+  success: true,
+  data: {
+    userStats: userStats.rows,
+    rdvStats: rdvStats.rows,
+    consultationStats: {
+      ...(consultationStats.rows[0] || {
+        total_consultations: 0,
+        consultations_aujourdhui: 0,
+        consultations_30j: 0
+      }),
+      daily_stats: dailyConsultations.rows
+    },
+    financialStats: {
+      ...(financialStats.rows[0] || {
+        revenus_total: 0,
+        revenus_aujourdhui: 0,
+        revenus_30j: 0,
+        factures_payees: 0,
+        factures_en_attente: 0
+      }),
+      daily_revenus: dailyRevenus.rows
+    },
+    recentActivity: recentActivity.rows
+  }
+};
 
     console.log('✅ Sending response:', JSON.stringify(responseData, null, 2));
     res.json(responseData);
@@ -117,6 +148,7 @@ const getDashboardStats = async (req, res) => {
     });
   }
 };
+
 
 // Gestion des utilisateurs - Liste
 const getUsers = async (req, res) => {
@@ -334,11 +366,136 @@ const generateReport = async (req, res) => {
   }
 };
 
+// À ajouter dans adminController.js après les autres fonctions
+
+const getSystemSettings = async (req, res) => {
+  try {
+    const settings = await pool.query(`
+      SELECT cle, valeur, description 
+      FROM parametres_systeme
+      ORDER BY cle
+    `);
+    
+    // Convertir en objet avec clé => valeur
+    const settingsObj = {};
+    settings.rows.forEach(row => {
+      settingsObj[row.cle] = {
+        value: row.valeur,
+        description: row.description
+      };
+    });
+    
+    res.json({
+      success: true,
+      data: settingsObj
+    });
+  } catch (error) {
+    console.error('Erreur lors de la récupération des paramètres:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération des paramètres'
+    });
+  }
+};
+
+// Mettre à jour les paramètres système
+const updateSystemSettings = async (req, res) => {
+  try {
+    const settings = req.body;
+    
+    // Commencer une transaction
+    await pool.query('BEGIN');
+    
+    // Mettre à jour chaque paramètre
+    for (const [key, value] of Object.entries(settings)) {
+      await pool.query(`
+        INSERT INTO parametres_systeme (cle, valeur, description, date_mise_a_jour)
+        VALUES ($1, $2, $3, NOW())
+        ON CONFLICT (cle) 
+        DO UPDATE SET 
+          valeur = EXCLUDED.valeur,
+          date_mise_a_jour = NOW()
+      `, [key, value.toString(), getSettingDescription(key)]);
+    }
+    
+    // Valider la transaction
+    await pool.query('COMMIT');
+    
+    res.json({
+      success: true,
+      message: 'Paramètres mis à jour avec succès'
+    });
+  } catch (error) {
+    // Annuler la transaction en cas d'erreur
+    await pool.query('ROLLBACK');
+    console.error('Erreur lors de la mise à jour des paramètres:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la mise à jour des paramètres'
+    });
+  }
+};
+
+// Helper function pour obtenir la description d'un paramètre
+const getSettingDescription = (key) => {
+  const descriptions = {
+    'site_name': 'Nom du site web',
+    'dark_mode': 'Mode sombre activé/désactivé',
+    'maintenance_mode': 'Mode maintenance activé/désactivé',
+    'font_family': 'Police de caractères utilisée',
+    'font_size': 'Taille de la police',
+    'primary_color': 'Couleur primaire du site'
+  };
+  return descriptions[key] || 'Paramètre système';
+};
+
+// Initialiser les paramètres par défaut
+const initializeSystemSettings = async (req, res) => {
+  try {
+    const defaultSettings = {
+      'site_name': 'Cabinet Médical',
+      'dark_mode': 'false',
+      'maintenance_mode': 'false',
+      'font_family': 'Inter',
+      'font_size': '16px',
+      'primary_color': '#3b82f6'
+    };
+
+    await pool.query('BEGIN');
+    
+    for (const [key, value] of Object.entries(defaultSettings)) {
+      await pool.query(`
+        INSERT INTO parametres_systeme (cle, valeur, description, date_creation)
+        VALUES ($1, $2, $3, NOW())
+        ON CONFLICT (cle) DO NOTHING
+      `, [key, value, getSettingDescription(key)]);
+    }
+    
+    await pool.query('COMMIT');
+    
+    res.json({
+      success: true,
+      message: 'Paramètres initialisés avec succès'
+    });
+  } catch (error) {
+    await pool.query('ROLLBACK');
+    console.error('Erreur lors de l\'initialisation des paramètres:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de l\'initialisation des paramètres'
+    });
+  }
+};
+
+// À ajouter dans le module.exports
 module.exports = {
   getDashboardStats,
   getUsers,
   createUser,
   updateUser,
   deleteUser,
-  generateReport
+  generateReport,
+  getSystemSettings,
+  updateSystemSettings,
+  initializeSystemSettings
 };

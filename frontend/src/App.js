@@ -6,6 +6,7 @@ import './App.css';
 // Context Providers
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { SettingsProvider } from './context/SettingsContext';
 
 // Pages publiques
 import Home from './pages/Home';
@@ -158,11 +159,13 @@ const AppRoutes = () => {
 // Composant principal App avec les providers
 const App = () => {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </ThemeProvider>
+    <SettingsProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </ThemeProvider>
+    </SettingsProvider>
   );
 };
 

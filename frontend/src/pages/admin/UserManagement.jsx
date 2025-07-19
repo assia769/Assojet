@@ -10,30 +10,29 @@ const UserManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [formData, setFormData] = useState({});
 
   useEffect(() => {
     fetchUsers();
   }, [currentPage, selectedRole, searchTerm]);
 
   const fetchUsers = async () => {
-  try {
-    setLoading(true);
-    const response = await adminService.getUsers({
-      page: currentPage,
-      role: selectedRole !== 'all' ? selectedRole : undefined,
-      search: searchTerm
-    });
-
-    
-    setUsers(response.users);
-    setTotalPages(response.pagination.totalPages);
-
-  } catch (error) {
-    console.error('Error fetching users:', error);
-  } finally {
-    setLoading(false);
-  }
-};
+    try {
+      setLoading(true);
+      const response = await adminService.getUsers({
+        page: currentPage,
+        role: selectedRole !== 'all' ? selectedRole : undefined,
+        search: searchTerm
+      });
+      setUsers(response.users);
+      setTotalPages(response.pagination.totalPages);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleDeleteUser = async (userId) => {
     if (window.confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
@@ -46,12 +45,25 @@ const UserManagement = () => {
     }
   };
 
-  const handleToggleStatus = async (userId, currentStatus) => {
+  const handleEditUser = (user) => {
+    setSelectedUser(user);
+    setFormData({
+      nom: user.nom,
+      prenom: user.prenom,
+      email: user.email,
+      role: user.role,
+      telephone: user.telephone,
+      adresse: user.adresse
+    });
+  };
+
+  const handleUpdateUser = async () => {
     try {
-      await adminService.toggleUserStatus(userId, !currentStatus);
+      await adminService.updateUser(selectedUser.id_u, formData);
+      setSelectedUser(null);
       fetchUsers();
     } catch (error) {
-      console.error('Error toggling user status:', error);
+      console.error("Erreur lors de la mise à jour de l'utilisateur:", error);
     }
   };
 
@@ -102,38 +114,30 @@ const UserManagement = () => {
               <th>Prénom</th>
               <th>Email</th>
               <th>Rôle</th>
-              <th>Statut</th>
-              <th>Date d'inscription</th>
+              <th>Téléphone</th>
+              <th>Adresse</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {filteredUsers.map(user => (
-              <tr key={user._id}>
+              <tr key={user.id_u}>
                 <td>{user.nom}</td>
                 <td>{user.prenom}</td>
                 <td>{user.email}</td>
-                <td>
-                  <span className={`role-badge ${user.role}`}>
-                    {user.role}
-                  </span>
-                </td>
-                <td>
-                  <span className={`status-badge ${user.statut}`}>
-                    {user.statut}
-                  </span>
-                </td>
-                <td>{new Date(user.createdAt).toLocaleDateString()}</td>
+                <td>{user.role}</td>
+                <td>{user.telephone}</td>
+                <td>{user.adresse}</td>
                 <td>
                   <div className="action-buttons">
                     <button
-                      onClick={() => handleToggleStatus(user._id, user.statut === 'actif')}
-                      className={`action-btn ${user.statut === 'actif' ? 'suspend' : 'activate'}`}
+                      onClick={() => handleEditUser(user)}
+                      className="action-btn activate"
                     >
-                      {user.statut === 'actif' ? 'Suspendre' : 'Activer'}
+                      Modifier
                     </button>
                     <button
-                      onClick={() => handleDeleteUser(user._id)}
+                      onClick={() => handleDeleteUser(user.id_u)}
                       className="action-btn delete"
                     >
                       Supprimer
@@ -145,6 +149,54 @@ const UserManagement = () => {
           </tbody>
         </table>
       </div>
+
+      {selectedUser && (
+        <div className="edit-form">
+          <h2>Modifier l'utilisateur</h2>
+          <input
+            type="text"
+            placeholder="Nom"
+            value={formData.nom}
+            onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
+          />
+          <input
+            type="text"
+            placeholder="Prénom"
+            value={formData.prenom}
+            onChange={(e) => setFormData({ ...formData, prenom: e.target.value })}
+          />
+          <input
+            type="email"
+            placeholder="Email"
+            value={formData.email}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+          />
+          <select
+            value={formData.role}
+            onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+          >
+            <option value="patient">Patient</option>
+            <option value="medecin">Médecin</option>
+            <option value="secretaire">Secrétaire</option>
+            <option value="admin">Admin</option>
+          </select>
+          <input
+            type="text"
+            placeholder="Téléphone"
+            value={formData.telephone}
+            onChange={(e) => setFormData({ ...formData, telephone: e.target.value })}
+          />
+          <input
+            type="text"
+            placeholder="Adresse"
+            value={formData.adresse}
+            onChange={(e) => setFormData({ ...formData, adresse: e.target.value })}
+          />
+          <button onClick={handleUpdateUser} className="action-btn confirm">
+            Enregistrer
+          </button>
+        </div>
+      )}
 
       {totalPages > 1 && (
         <div className="pagination">
