@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import '../styles/components/login.css';
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -66,91 +67,111 @@ const Login = () => {
   };
 
   return (
-    <div style={{ 
-      maxWidth: '400px', 
-      margin: '50px auto', 
-      padding: '20px',
-      border: '1px solid #ddd',
-      borderRadius: '8px',
-      backgroundColor: '#f8f9fa'
-    }}>
-      <h2 style={{ textAlign: 'center', marginBottom: '30px' }}>
-        🔐 Connexion
-      </h2>
-      
-      {error && (
-        <div style={{ 
-          backgroundColor: '#f8d7da', 
-          color: '#721c24',
-          padding: '10px',
-          borderRadius: '4px',
-          marginBottom: '20px',
-          border: '1px solid #f5c6cb'
-        }}>
-          <strong>Erreur:</strong> {error}
-        </div>
-      )}
-      
-      <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-            📧 Email:
-          </label>
-          <input
-            type="email"
-            name="email"
-            value={formData.email}
-            onChange={handleChange}
-            required
-            style={{
-              width: '100%',
-              padding: '10px',
-              border: '1px solid #ddd',
-              borderRadius: '4px',
-              fontSize: '16px'
-            }}
-          />
+    <div className="login-page">
+      {/* Particules médicales flottantes */}
+      <div className="medical-particles">
+        <div className="particle"></div>
+        <div className="particle"></div>
+        <div className="particle"></div>
+        <div className="particle"></div>
+        <div className="particle"></div>
+        <div className="particle"></div>
+        <div className="particle"></div>
+        <div className="particle"></div>
+        <div className="particle"></div>
+      </div>
+
+      {/* Croix médicales animées */}
+      <div className="medical-crosses">
+        <div className="medical-cross"></div>
+        <div className="medical-cross"></div>
+        <div className="medical-cross"></div>
+      </div>
+
+      {/* DNA Helix */}
+      <div className="dna-helix">
+        <div className="dna-strand"></div>
+        <div className="dna-strand"></div>
+      </div>
+
+      {/* Heartbeat */}
+      <div className="heartbeat"></div>
+
+      {/* Pulse Wave */}
+      <div className="pulse-wave">
+        <div className="pulse-line"></div>
+      </div>
+
+      <div className="login-container">
+        <div className="login-header">
+          <div className="medical-logo"></div>
+          <h1 className="login-title">Connexion Médicale</h1>
+          <p className="login-subtitle">
+            🌟 Votre portail sécurisé vers l'excellence médicale 🌟
+          </p>
         </div>
         
-        <div style={{ marginBottom: '20px' }}>
-          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-            🔒 Mot de passe:
-          </label>
-          <input
-            type="password"
-            name="password"
-            value={formData.password}
-            onChange={handleChange}
-            required
-            style={{
-              width: '100%',
-              padding: '10px',
-              border: '1px solid #ddd',
-              borderRadius: '4px',
-              fontSize: '16px'
-            }}
-          />
-        </div>
+        {error && (
+          <div className="error-message">
+            <strong>Erreur:</strong> {error}
+          </div>
+        )}
         
-        <button 
-          type="submit" 
-          disabled={loading}
-          style={{
-            width: '100%',
-            padding: '12px',
-            backgroundColor: loading ? '#6c757d' : '#007bff',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            fontSize: '16px',
-            cursor: loading ? 'not-allowed' : 'pointer'
-          }}
-        >
-          {loading ? '🔄 Connexion...' : '🚀 Se connecter'}
-        </button>
-      </form>
-      
-      
+        <form className="login-form" onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label className="form-label" htmlFor="email">
+              Adresse Email
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                id="email"
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                required
+                className="form-input"
+                placeholder="exemple@email.com"
+                autoComplete="email"
+              />
+            </div>
+          </div>
+          
+          <div className="form-group">
+            <label className="form-label" htmlFor="password">
+              Mot de passe
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                id="password"
+                type="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                required
+                className="form-input"
+                placeholder="••••••••"
+                autoComplete="current-password"
+              />
+            </div>
+          </div>
+          
+          <button 
+            type="submit" 
+            disabled={loading}
+            className="login-button"
+          >
+            <div className="button-content">
+              {loading && <div className="loading-spinner"></div>}
+              <span>{loading ? 'Connexion en cours...' : 'Se connecter'}</span>
+            </div>
+          </button>
+        </form>
+        
+        <div className="medical-footer">
+          <span>🚀 Cabinet Médical Premium - Technologie de Pointe 🚀</span>
+        </div>
+      </div>
     </div>
   );
 };

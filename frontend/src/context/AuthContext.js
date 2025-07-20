@@ -80,7 +80,95 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     }
   };
+  
+// const register = async (userData) => {
+//   try {
+//     setLoading(true);
+//     console.log('📝 Attempting registration...');
+    
+//     const response = await authService.register(userData);
+//     console.log('🧾 Register response:', response);
+    
+//     if (response.user && response.token) {
+//       // Stocker le token ET les données utilisateur
+//       localStorage.setItem('authToken', response.token);
+//       localStorage.setItem('user', JSON.stringify(response.user));
+      
+//       // Mettre à jour le state
+//       setToken(response.token);
+//       setUser(response.user);
+      
+//       console.log('✅ Registration successful, token stored');
+//       console.log('🔑 Token preview:', response.token.substring(0, 20) + '...');
+      
+//       return { success: true, user: response.user };
+//     } else {
+//       throw new Error('Réponse d\'inscription invalide');
+//     }
+//   } catch (error) {
+//     console.error('❌ Registration error:', error);
+    
+//     // Nettoyer en cas d'erreur
+//     localStorage.removeItem('authToken');
+//     localStorage.removeItem('user');
+//     setToken(null);
+//     setUser(null);
+    
+//     throw error;
+//   } finally {
+//     setLoading(false);
+//   }
+// };
 
+// Remplacer la méthode register dans votre AuthContext.js
+
+// Remplacer la méthode register dans votre AuthContext.js
+
+const register = async (userData) => {
+  try {
+    setLoading(true);
+    console.log('📝 Attempting registration...');
+    
+    // Nettoyer le token existant avant l'inscription
+    const existingToken = localStorage.getItem('authToken');
+    if (existingToken) {
+      console.log('🧹 Clearing existing token before registration');
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      setToken(null);
+      setUser(null);
+    }
+    
+    const response = await authService.register(userData);
+    console.log('🧾 Register response:', response);
+    
+    // Ne pas stocker le token - juste retourner le succès
+    if (response.user) {
+      console.log('✅ Registration successful - user not logged in automatically');
+      
+      // Retourner seulement les infos d'inscription sans connexion automatique
+      return { 
+        success: true, 
+        user: response.user,
+        message: 'Inscription réussie. Veuillez vous connecter.'
+      };
+    } else {
+      throw new Error('Réponse d\'inscription invalide');
+    }
+  } catch (error) {
+    console.error('❌ Registration error:', error);
+    
+    // S'assurer que rien n'est stocké en cas d'erreur
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('user');
+    setToken(null);
+    setUser(null);
+    
+    throw error;
+  } finally {
+    setLoading(false);
+  }
+};
   const logout = () => {
     console.log('🔓 Logging out...');
     
@@ -116,6 +204,7 @@ export const AuthProvider = ({ children }) => {
     token,
     loading,
     login,
+    register,
     logout,
     isAuthenticated,
     isAdmin,

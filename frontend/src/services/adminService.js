@@ -27,11 +27,19 @@ export const adminService = {
     return response.data;
   },
 
-  async generateReport(params) {
-    const response = await api.get('/admin/settings/reports', { params });
-    return response.data.data;
-  },
-  
+ 
+ async generateUserReport(userId) {
+  try {
+    const response = await api.get('/admin/settings/reports', {
+      params: { userId }
+      // Pas besoin de répéter le header Authorization car api.js s'en charge déjà
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Erreur service generateUserReport:', error);
+    throw error;
+  }
+},
   async getSystemSettings() {
   try {
     const response = await api.get('/admin/settings/settings');

@@ -239,50 +239,121 @@ const getUsers = async (req, res) => {
   }
 };
 
-// Reste du code inchangé...
 const createUser = async (req, res) => {
-  try {
-    const { nom, prenom, email, password, role, telephone, adresse } = req.body;
+  console.log('🔍 createUser called with data:', req.body);
 
-    // Vérifier si l'email existe déjà
+  try {
+    const {
+      nom,
+      prenom,
+      email,
+      password,
+      role = 'patient',
+      telephone = null,
+      adresse = null,
+      photo = 'default.jpg'
+    } = req.body;
+
+    // Validation des champs obligatoires
+    if (!nom || !prenom || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Les champs nom, prénom, email et mot de passe sont obligatoires'
+      });
+    }
+
+    // Validation email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Format d\'email invalide'
+      });
+    }
+
+    // Validation mot de passe (doit respecter contrainte PostgreSQL ≥ 8)
+    if (password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Le mot de passe doit contenir au moins 8 caractères'
+      });
+    }
+
+    // Validation du rôle (doit correspondre au CHECK PostgreSQL)
+    const validRoles = ['admin', 'medecin', 'secretaire', 'patient'];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message: `Le rôle doit être parmi : ${validRoles.join(', ')}`
+      });
+    }
+
+    // Vérifier si email déjà existant
     const existingUser = await pool.query(
       'SELECT id_u FROM Utilisateur WHERE email = $1',
-      [email]
+      [email.trim().toLowerCase()]
     );
 
     if (existingUser.rows.length > 0) {
       return res.status(400).json({
         success: false,
-        message: 'Email déjà utilisé'
+        message: 'Un utilisateur avec cet email existe déjà'
       });
     }
 
-    // Hasher le mot de passe
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Hash du mot de passe
+    const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Insérer l'utilisateur
+    // Insertion
     const insertQuery = `
-      INSERT INTO Utilisateur (nom, prenom, email, password, role, telephone, adresse)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING id_u, nom, prenom, email, role
+      INSERT INTO Utilisateur 
+        (nom, prenom, email, password, role, telephone, adresse, photo) 
+      VALUES 
+        ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING id_u, nom, prenom, email, role, telephone, adresse, photo
     `;
-    const values = [nom, prenom, email, hashedPassword, role, telephone, adresse];
+
+    const values = [
+      nom.trim(),
+      prenom.trim(),
+      email.trim().toLowerCase(),
+      hashedPassword,
+      role,
+      telephone,
+      adresse,
+      photo
+    ];
+
     const result = await pool.query(insertQuery, values);
+    const newUser = result.rows[0];
+
+    console.log('✅ Utilisateur créé avec succès:', newUser);
 
     res.status(201).json({
       success: true,
       message: 'Utilisateur créé avec succès',
-      user: result.rows[0]
+      data: newUser
     });
 
   } catch (error) {
-    console.error('Create user error:', error);
+    console.error('❌ Create user error:', error);
+
+    // Gestion erreurs SQL spécifiques (conflit UNIQUE, etc.)
+    if (error.code === '23505') {
+      return res.status(400).json({
+        success: false,
+        message: 'Un utilisateur avec cet email existe déjà'
+      });
+    }
+
     res.status(500).json({
       success: false,
-      message: 'Erreur lors de la création de utilisateur'
+      message: 'Erreur interne lors de la création de l\'utilisateur',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
+
 
 const updateUser = async (req, res) => {
   try {
@@ -347,21 +418,109 @@ const deleteUser = async (req, res) => {
   }
 };
 
+// const generateReport = async (req, res) => {
+//   try {
+//     res.json({
+//       success: true,
+//       message: 'Rapport généré (fictif)',
+//       data: {
+//         date: new Date(),
+//         entries: [],
+//       },
+//     });
+//   } catch (error) {
+//     console.error('Generate report error:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Erreur lors de la génération du rapport',
+//     });
+//   }
+// };
 const generateReport = async (req, res) => {
   try {
-    res.json({
-      success: true,
-      message: 'Rapport généré (fictif)',
-      data: {
-        date: new Date(),
-        entries: [],
+    console.log('📊 Generate report request:', req.query);
+
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID utilisateur requis'
+      });
+    }
+
+    // Récupérer les infos utilisateur depuis la table Utilisateur
+    const userQuery = `
+      SELECT 
+        id_u, nom, prenom, email, role, telephone, adresse, 
+        date_derniere_connexion
+      FROM utilisateur 
+      WHERE id_u = $1
+    `;
+    const userResult = await pool.query(userQuery, [userId]);
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Utilisateur non trouvé'
+      });
+    }
+
+    const user = userResult.rows[0];
+
+    // Total des consultations liées à l'utilisateur (en tant que patient)
+    const consultationsQuery = `
+      SELECT COUNT(*) AS total_consultations
+      FROM consultation
+      WHERE id_patient = $1
+    `;
+
+    // Statistiques de rendez-vous groupés par statut
+    const rdvQuery = `
+      SELECT COUNT(*) AS total_rdv, statut
+      FROM rendezvous
+      WHERE id_patient = $1
+      GROUP BY statut
+    `;
+
+    const consultationsResult = await pool.query(consultationsQuery, [userId]);
+    const rdvResult = await pool.query(rdvQuery, [userId]);
+
+    // Construction du rapport
+    const reportData = {
+      dateGeneration: new Date().toISOString(),
+      utilisateur: {
+        id: user.id_u,
+        nom: user.nom || 'Non renseigné',
+        prenom: user.prenom || 'Non renseigné',
+        email: user.email || 'Non renseigné',
+        role: user.role || 'Non renseigné',
+        telephone: user.telephone || 'Non renseigné',
+        adresse: user.adresse || 'Non renseignée',
+        dateCreation: 'Non disponible', // À ajouter dans la DB si nécessaire
+        derniereConnexion: user.date_derniere_connexion || 'Jamais connecté'
       },
+      statistiques: {
+        totalConsultations: parseInt(consultationsResult.rows[0]?.total_consultations || 0, 10),
+        rendezVous: rdvResult.rows || [],
+        derniereActivite: user.date_derniere_connexion || 'Aucune activité'
+      }
+    };
+
+    console.log('✅ Rapport généré pour l’utilisateur:', userId);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Rapport généré avec succès',
+      data: reportData
     });
+
   } catch (error) {
-    console.error('Generate report error:', error);
-    res.status(500).json({
+    console.error('❌ Erreur lors de la génération du rapport:', error);
+    return res.status(500).json({
       success: false,
-      message: 'Erreur lors de la génération du rapport',
+      message: 'Erreur interne lors de la génération du rapport',
+      error: error.message
     });
   }
 };

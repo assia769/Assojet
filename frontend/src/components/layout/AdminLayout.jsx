@@ -1,187 +1,182 @@
-// // frontend/src/components/layout/AdminLayout.jsx
-// import React, { useState } from 'react';
-// import { Link, useLocation, useNavigate } from 'react-router-dom';
-// import { useAuth } from '../../hooks/useAuth';
-// import '../../styles/components/admin.css';
-
-// const AdminLayout = ({ children }) => {
-//   const { user, logout } = useAuth();
-//   const location = useLocation();
-//   const navigate = useNavigate();
-//   const [sidebarOpen, setSidebarOpen] = useState(true);
-
-//   const isActive = (path) => {
-//     return location.pathname === path;
-//   };
-
-//   const handleLogout = async () => {
-//     await logout();
-//     navigate('/login');
-//   };
-
-//   const menuItems = [
-//     {
-//       path: '/admin',
-//       label: 'Dashboard',
-//       icon: '📊'
-//     },
-//     {
-//       path: '/admin/users',
-//       label: 'Utilisateurs',
-//       icon: '👥'
-//     },
-//     {
-//       path: '/admin/settings',
-//       label: 'Paramètres',
-//       icon: '⚙️'
-//     }
-//   ];
-
-//   return (
-//     <div className="admin-layout">
-//       <aside className={`admin-sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
-//         <div className="sidebar-header">
-//           <Link to="/" className="logo">
-//             <h2>Cabinet Médical</h2>
-//           </Link>
-//           <button 
-//             className="sidebar-toggle"
-//             onClick={() => setSidebarOpen(!sidebarOpen)}
-//           >
-//             {sidebarOpen ? '←' : '→'}
-//           </button>
-//         </div>
-        
-//         <nav className="sidebar-nav">
-//           <ul>
-//             {menuItems.map((item) => (
-//               <li key={item.path}>
-//                 <Link 
-//                   to={item.path}
-//                   className={`nav-item ${isActive(item.path) ? 'active' : ''}`}
-//                 >
-//                   <span className="nav-icon">{item.icon}</span>
-//                   {sidebarOpen && <span className="nav-label">{item.label}</span>}
-//                 </Link>
-//               </li>
-//             ))}
-//           </ul>
-//         </nav>
-        
-//         <div className="sidebar-footer">
-//           <Link to="/" className="back-to-site">
-//             <span className="nav-icon">🏠</span>
-//             {sidebarOpen && <span className="nav-label">Retour au site</span>}
-//           </Link>
-//         </div>
-//       </aside>
-      
-//       <div className="admin-main">
-//         <header className="admin-header">
-//           <div className="header-left">
-//             <h1>Administration</h1>
-//           </div>
-          
-//           <div className="header-right">
-//             <div className="admin-user">
-//               <span className="user-info">
-//                 {user.prenom} {user.nom}
-//               </span>
-//               <button onClick={handleLogout} className="logout-btn">
-//                 Déconnexion
-//               </button>
-//             </div>
-//           </div>
-//         </header>
-        
-//         <main className="admin-content">
-//           {children}
-//         </main>
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default AdminLayout;
-
 // frontend/src/components/layout/AdminLayout.jsx
-import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import '../../styles/components/adminLay.css';
 
 const AdminLayout = ({ children }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleLogout = async () => {
     await logout();
     navigate('/login');
   };
 
+  // Gérer l'effet de scroll sur le header
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 10);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Fonction pour obtenir les initiales de l'utilisateur
+  const getUserInitials = () => {
+    const name = user?.name || user?.nom || user?.email || '';
+    const prenom = user?.prenom || '';
+    
+    if (user?.nom && user?.prenom) {
+      return `${user.nom.charAt(0)}${user.prenom.charAt(0)}`.toUpperCase();
+    }
+    
+    return name.charAt(0).toUpperCase() || '?';
+  };
+
+  // Fonction pour obtenir le nom d'affichage
+  const getDisplayName = () => {
+    if (user?.nom && user?.prenom) {
+      return `${user.prenom} ${user.nom}`;
+    }
+    return user?.name || user?.email || 'Utilisateur';
+  };
+
+  // Fonction pour vérifier si un lien est actif
+  const isActiveLink = (path) => {
+    if (path === '/admin' && location.pathname === '/admin') {
+      return true;
+    }
+    if (path !== '/admin' && location.pathname.startsWith(path)) {
+      return true;
+    }
+    return false;
+  };
+
+  // Navigation items
+  const navigationItems = [
+    {
+      to: '/admin',
+      icon: '📊',
+      label: 'Tableau de bord'
+    },
+    {
+      to: '/admin/users',
+      icon: '👥',
+      label: 'Gestion des utilisateurs'
+    },
+    
+    {
+      to: '/admin/settings',
+      icon: '⚙️',
+      label: 'Paramètres système'
+    }
+  ];
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="admin-layout">
+      {/* Mobile menu toggle button */}
+      <button
+        className="mobile-menu-btn"
+        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+        aria-label="Toggle menu"
+      >
+        {isMobileMenuOpen ? '✕' : '☰'}
+      </button>
+
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center">
-              <h1 className="text-xl font-semibold text-gray-900">
-                Administration
-              </h1>
+      <header className={`admin-header ${isScrolled ? 'scrolled' : ''}`}>
+        <div className="header-container">
+          <div className="header-content">
+            <div className="header-title">
+              <h1>Administration</h1>
             </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">
-                Bonjour, {user?.name || user?.email}
-              </span>
+            
+            <div className="header-actions">
+              <div className="user-info">
+                <div className="user-avatar">
+                  {getUserInitials()}
+                </div>
+                <span className="user-name">
+                  {getDisplayName()}
+                </span>
+              </div>
+              
               <button
                 onClick={handleLogout}
-                className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors"
+                className="logout-btn"
               >
-                Déconnexion
+                🚪 Déconnexion
               </button>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="flex">
-        {/* Sidebar */}
-        <nav className="w-64 bg-white shadow-sm min-h-screen">
-          <div className="p-4">
-            <ul className="space-y-2">
-              <li>
-                <Link
-                  to="/admin"
-                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md"
-                >
-                  Tableau de bord
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/admin/users"
-                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md"
-                >
-                  Gestion des utilisateurs
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/admin/settings"
-                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md"
-                >
-                  Paramètres système
-                </Link>
-              </li>
-            </ul>
+      {/* Sidebar */}
+      <nav className={`admin-sidebar ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
+        <div className="sidebar-header">
+          <div className="sidebar-logo">
+            ⚡ Admin
           </div>
-        </nav>
+        </div>
+        
+        <div className="sidebar-nav">
+          <ul className="nav-list">
+            {navigationItems.map((item, index) => (
+              <li key={item.to} className="nav-item">
+                <Link
+                  to={item.to}
+                  className={`nav-link ${isActiveLink(item.to) ? 'active' : ''}`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <span className="nav-icon">{item.icon}</span>
+                  <span>{item.label}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+          
+          {/* Section additionnelle dans la sidebar */}
+          <div style={{ 
+            padding: '1.5rem 1rem 1rem', 
+            marginTop: 'auto',
+            borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+            fontSize: '0.75rem',
+            color: 'rgba(255, 255, 255, 0.5)',
+            textAlign: 'center'
+          }}>
+            <div style={{ marginBottom: '0.5rem' }}>
+              🎯 Dashboard v2.0
+            </div>
+            <div>
+              Connecté en tant que <strong style={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                {user?.role || 'Admin'}
+              </strong>
+            </div>
+          </div>
+        </div>
+      </nav>
 
-        {/* Main content */}
-        <main className="flex-1 p-8">
+      {/* Main content */}
+      <main className="admin-main">
+        <div className="main-content">
           {children}
-        </main>
-      </div>
+        </div>
+      </main>
+
+      {/* Mobile overlay */}
+      {isMobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-998 lg:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+          style={{ zIndex: 998 }}
+        />
+      )}
     </div>
   );
 };

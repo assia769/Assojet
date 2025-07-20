@@ -37,8 +37,14 @@ router.get('/users', authMiddleware, isAdmin, adminController.getUsers);
 router.post('/users', authMiddleware, isAdmin, adminController.createUser);
 router.put('/users/:id', authMiddleware, isAdmin, adminController.updateUser);
 router.delete('/users/:id', authMiddleware, isAdmin, adminController.deleteUser);
-router.get('/reports', authMiddleware, isAdmin, adminController.generateReport);
+// router.get('/reports', authMiddleware, isAdmin, adminController.generateReport);
 
+
+router.get('/reports', authMiddleware, isAdmin, (req, res, next) => {
+  console.log('🎯 Reports route hit with query:', req.query);
+  console.log('👤 User:', req.user);
+  next();
+}, adminController.generateReport);
 router.get('/settings', authMiddleware, isAdmin, adminController.getSystemSettings);
 router.put('/settings', authMiddleware, isAdmin, adminController.updateSystemSettings);
 router.post('/settings/init', authMiddleware, isAdmin, adminController.initializeSystemSettings); 
