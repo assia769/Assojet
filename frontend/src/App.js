@@ -15,16 +15,45 @@ import Feedback from './pages/Feedback';
 import Login from './pages/Login';
 import Register from './pages/Register';
 
+
 // Pages Admin
 import AdminDashboard from './pages/admin/AdminDashboard';
 import UserManagement from './pages/admin/UserManagement';
 import SystemSettings from './pages/admin/SystemSettings';
 
+// Pages secretaire
+import SecretaryDashboard from './pages/secretary/SecretaryDashboard';
+import AppointmentManagement from './pages/secretary/AppointmentManagement';
+import PatientManagement from './pages/secretary/PatientManagement';
+import InvoiceManagement from './pages/secretary/InvoiceManagement';
+
 // Layout components
 import PublicLayout from './components/layout/PublicLayout';
 import AdminLayout from './components/layout/AdminLayout';
+import SecretaryLayout from './components/layout/SecretaryLayout';
 
 // Protected Route Component
+// const ProtectedRoute = ({ children, requiredRole }) => {
+//   const { user, loading } = useAuth();
+
+//   if (loading) {
+//     return (
+//       <div className="min-h-screen flex items-center justify-center bg-gray-50">
+//         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+//       </div>
+//     );
+//   }
+
+//   if (!user) {
+//     return <Navigate to="/login" replace />;
+//   }
+
+//   if (requiredRole && user.role !== requiredRole) {
+//     return <Navigate to="/" replace />;
+//   }
+
+//   return children;
+// };
 const ProtectedRoute = ({ children, requiredRole }) => {
   const { user, loading } = useAuth();
 
@@ -41,6 +70,12 @@ const ProtectedRoute = ({ children, requiredRole }) => {
   }
 
   if (requiredRole && user.role !== requiredRole) {
+    // Redirection spécifique selon le rôle
+    if (user.role === 'admin') {
+      return <Navigate to="/admin" replace />;
+    } else if (user.role === 'secretaire') {
+      return <Navigate to="/secretary" replace />;
+    }
     return <Navigate to="/" replace />;
   }
 
@@ -147,6 +182,47 @@ const AppRoutes = () => {
               </ProtectedRoute>
             } 
           />
+          {/* Routes Secrétaire protégées */}
+<Route 
+  path="/secretary" 
+  element={
+    <ProtectedRoute requiredRole="secretaire">
+      <SecretaryLayout>
+        <SecretaryDashboard />
+      </SecretaryLayout>
+    </ProtectedRoute>
+  } 
+/>
+<Route 
+  path="/secretary/appointments" 
+  element={
+    <ProtectedRoute requiredRole="secretaire">
+      <SecretaryLayout>
+        <AppointmentManagement />
+      </SecretaryLayout>
+    </ProtectedRoute>
+  } 
+/>
+        <Route 
+                path="/secretary/patients" 
+                element={
+                  <ProtectedRoute requiredRole="secretaire">
+                    <SecretaryLayout>
+                      <PatientManagement />
+                    </SecretaryLayout>
+                  </ProtectedRoute>
+                } 
+        />
+        <Route 
+                path="/secretary/invoices" 
+                element={
+                  <ProtectedRoute requiredRole="secretaire">
+                    <SecretaryLayout>
+                      <InvoiceManagement />
+                    </SecretaryLayout>
+                  </ProtectedRoute>
+                } 
+        />
 
           {/* Route par défaut - redirection vers l'accueil */}
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -54,6 +54,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
+const secretaryRoutes = require('./routes/secretary');
 
 // Exclude specific routes from maintenance
 app.use('/api/auth', authRoutes);
@@ -74,7 +75,7 @@ app.use((req, res, next) => {
   maintenanceMiddleware(req, res, next);
 });
 
-// app.use('/api/users', userRoutes);
+app.use('/api/secretary', secretaryRoutes);
 // app.use('/api/patients', patientRoutes);
 
 app.get('/api/test', (req, res) => {

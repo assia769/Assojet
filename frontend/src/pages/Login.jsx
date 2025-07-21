@@ -53,7 +53,9 @@ const Login = () => {
       } else if (result.user.role === 'medecin') {
         console.log('🔄 Redirecting to doctor dashboard');
         navigate('/doctor/dashboard');
-      } else {
+      }else if (result.user.role === 'secretaire') {
+        navigate('/secretary');
+      }else {
         console.log('🔄 Redirecting to patient dashboard');
         navigate('/patient/dashboard');
       }
