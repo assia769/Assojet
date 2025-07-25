@@ -1,6 +1,6 @@
-// frontend/src/components/secretary/CalendarWidget.jsx
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Calendar, Clock, User } from 'lucide-react';
+import { secretaryService } from '../../services/secretaryService';
 
 const CalendarWidget = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -17,23 +17,12 @@ const CalendarWidget = () => {
       setLoading(true);
       const startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
       const endDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-      
-      const token = localStorage.getItem('token');
-      const response = await fetch(
-        `/api/secretary/calendar?startDate=${startDate.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
 
-      if (!response.ok) {
-        throw new Error('Erreur lors de la récupération du calendrier');
-      }
+      const data = await secretaryService.getCalendarView({
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0]
+      });
 
-      const data = await response.json();
       setAppointments(data);
     } catch (error) {
       console.error('Erreur fetchCalendarData:', error);
@@ -52,37 +41,21 @@ const CalendarWidget = () => {
 
     const days = [];
 
-    // Ajouter les jours du mois précédent
     for (let i = startingDayOfWeek - 1; i >= 0; i--) {
       const prevMonthDay = new Date(year, month, -i);
-      days.push({
-        date: prevMonthDay,
-        isCurrentMonth: false,
-        isToday: false
-      });
+      days.push({ date: prevMonthDay, isCurrentMonth: false, isToday: false });
     }
 
-    // Ajouter les jours du mois actuel
     for (let day = 1; day <= daysInMonth; day++) {
       const currentDay = new Date(year, month, day);
       const isToday = currentDay.toDateString() === new Date().toDateString();
-      
-      days.push({
-        date: currentDay,
-        isCurrentMonth: true,
-        isToday
-      });
+      days.push({ date: currentDay, isCurrentMonth: true, isToday });
     }
 
-    // Compléter la grille avec les jours du mois suivant
     const remainingDays = 42 - days.length;
     for (let day = 1; day <= remainingDays; day++) {
       const nextMonthDay = new Date(year, month + 1, day);
-      days.push({
-        date: nextMonthDay,
-        isCurrentMonth: false,
-        isToday: false
-      });
+      days.push({ date: nextMonthDay, isCurrentMonth: false, isToday: false });
     }
 
     return days;
@@ -90,9 +63,7 @@ const CalendarWidget = () => {
 
   const getAppointmentsForDate = (date) => {
     const dateString = date.toISOString().split('T')[0];
-    return appointments.filter(apt => 
-      apt.date_rend.split('T')[0] === dateString
-    );
+    return appointments.filter(apt => apt.date_rend.split('T')[0] === dateString);
   };
 
   const navigateMonth = (direction) => {
@@ -104,10 +75,7 @@ const CalendarWidget = () => {
   };
 
   const formatMonthYear = (date) => {
-    return date.toLocaleDateString('fr-FR', {
-      month: 'long',
-      year: 'numeric'
-    });
+    return date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
   };
 
   const formatTime = (timeString) => {
@@ -121,45 +89,32 @@ const CalendarWidget = () => {
   return (
     <div className="bg-white rounded-lg shadow-sm p-6">
       <div className="flex justify-between items-center mb-6">
-        <h3 className="text-lg font-semibold text-gray-900">
-          Calendrier
-        </h3>
+        <h3 className="text-lg font-semibold text-gray-900">Calendrier</h3>
         <div className="flex items-center space-x-2">
-          <button
-            onClick={() => navigateMonth(-1)}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
+          <button onClick={() => navigateMonth(-1)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
             <ChevronLeft className="h-4 w-4 text-gray-600" />
           </button>
           <h4 className="text-base font-medium text-gray-700 min-w-[140px] text-center">
             {formatMonthYear(currentDate)}
           </h4>
-          <button
-            onClick={() => navigateMonth(1)}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
+          <button onClick={() => navigateMonth(1)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
             <ChevronRight className="h-4 w-4 text-gray-600" />
           </button>
         </div>
       </div>
 
-      {/* Calendrier */}
       <div className="mb-6">
-        {/* En-têtes des jours */}
         <div className="grid grid-cols-7 gap-1 mb-2">
           {weekDays.map(day => (
-            <div key={day} className="p-2 text-center text-xs font-medium text-gray-500">
-              {day}
-            </div>
+            <div key={day} className="p-2 text-center text-xs font-medium text-gray-500">{day}</div>
           ))}
         </div>
 
-        {/* Grille des jours */}
         <div className="grid grid-cols-7 gap-1">
           {days.map((day, index) => {
             const dayAppointments = getAppointmentsForDate(day.date);
             const isSelected = day.date.toDateString() === selectedDate.toDateString();
-            
+
             return (
               <button
                 key={index}
@@ -172,17 +127,14 @@ const CalendarWidget = () => {
                       ? 'bg-blue-600 text-white hover:bg-blue-700' 
                       : isSelected
                         ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                        : 'text-gray-700 hover:bg-gray-100'
-                  }
+                        : 'text-gray-700 hover:bg-gray-100'}
                 `}
               >
                 {day.date.getDate()}
                 {dayAppointments.length > 0 && (
                   <div className={`
                     absolute bottom-1 right-1 w-2 h-2 rounded-full
-                    ${day.isToday ? 'bg-white' : 'bg-blue-500'}
-                  `}>
-                  </div>
+                    ${day.isToday ? 'bg-white' : 'bg-blue-500'}`}></div>
                 )}
               </button>
             );
@@ -190,16 +142,11 @@ const CalendarWidget = () => {
         </div>
       </div>
 
-      {/* Rendez-vous du jour sélectionné */}
       <div>
         <h4 className="text-sm font-semibold text-gray-900 mb-3">
-          {selectedDate.toLocaleDateString('fr-FR', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long'
-          })}
+          {selectedDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
         </h4>
-        
+
         {loading ? (
           <div className="space-y-2">
             {[...Array(3)].map((_, i) => (
@@ -212,17 +159,12 @@ const CalendarWidget = () => {
         ) : selectedDateAppointments.length === 0 ? (
           <div className="text-center py-4">
             <Calendar className="mx-auto h-8 w-8 text-gray-400 mb-2" />
-            <p className="text-sm text-gray-500">
-              Aucun rendez-vous ce jour
-            </p>
+            <p className="text-sm text-gray-500">Aucun rendez-vous ce jour</p>
           </div>
         ) : (
           <div className="space-y-2 max-h-40 overflow-y-auto">
             {selectedDateAppointments.map((appointment) => (
-              <div
-                key={appointment.id_r}
-                className="flex items-center space-x-3 p-2 bg-gray-50 rounded-lg"
-              >
+              <div key={appointment.id_r} className="flex items-center space-x-3 p-2 bg-gray-50 rounded-lg">
                 <div className="flex-shrink-0">
                   <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
                     <Clock className="h-4 w-4 text-blue-600" />
@@ -236,9 +178,7 @@ const CalendarWidget = () => {
                     Dr. {appointment.medecin_nom} {appointment.medecin_prenom}
                   </p>
                   {appointment.motif && (
-                    <p className="text-xs text-gray-400 truncate">
-                      {appointment.motif}
-                    </p>
+                    <p className="text-xs text-gray-400 truncate">{appointment.motif}</p>
                   )}
                 </div>
                 <div className="flex-shrink-0">
@@ -248,8 +188,7 @@ const CalendarWidget = () => {
                       ? 'bg-green-100 text-green-800' 
                       : appointment.statut === 'en attente'
                         ? 'bg-yellow-100 text-yellow-800'
-                        : 'bg-gray-100 text-gray-800'
-                    }
+                        : 'bg-gray-100 text-gray-800'}
                   `}>
                     {appointment.statut}
                   </span>

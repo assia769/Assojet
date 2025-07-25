@@ -1,6 +1,7 @@
 // frontend/src/components/secretary/DashboardStats.jsx
 import React, { useState, useEffect } from 'react';
 import { Calendar, Users, FileText, Clock, TrendingUp, AlertCircle } from 'lucide-react';
+import { secretaryService } from '../../services/secretaryService';
 
 const DashboardStats = () => {
   const [stats, setStats] = useState({
@@ -18,21 +19,30 @@ const DashboardStats = () => {
 
   const fetchDashboardStats = async () => {
     try {
-      const response = await fetch('/api/secretary/dashboard/stats', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        }
+      setLoading(true);
+      setError(null);
+      const data = await secretaryService.getDashboardStats();
+      console.log('Données récupérées:', data);  // Ajoutez cette ligne
+
+      setStats(data || {
+        todayAppointments: 0,
+        pendingInvoices: 0,
+        totalPatients: 0,
+        upcomingAppointments: []
       });
-
-      if (!response.ok) {
-        throw new Error('Erreur lors du chargement des statistiques');
-      }
-
-      const data = await response.json();
-      setStats(data);
     } catch (error) {
       console.error('Erreur fetchDashboardStats:', error);
-      setError(error.message);
+      
+      // Gestion spécifique des erreurs
+      if (error.response?.status === 401) {
+        setError('Session expirée. Veuillez vous reconnecter.');
+      } else if (error.response?.status === 403) {
+        setError('Accès non autorisé.');
+      } else if (error.message === 'Unexpected token \'<\'') {
+        setError('Erreur de configuration du serveur. Contactez l\'administrateur.');
+      } else {
+        setError(error.response?.data?.message || error.message || 'Erreur de connexion');
+      }
     } finally {
       setLoading(false);
     }
@@ -63,6 +73,12 @@ const DashboardStats = () => {
           <AlertCircle className="h-5 w-5 text-red-400 mr-2" />
           <p className="text-red-700">Erreur lors du chargement des statistiques: {error}</p>
         </div>
+        <button
+          onClick={fetchDashboardStats}
+          className="mt-2 px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
+        >
+          Réessayer
+        </button>
       </div>
     );
   }
@@ -70,7 +86,7 @@ const DashboardStats = () => {
   const statsCards = [
     {
       title: "RDV aujourd'hui",
-      value: stats.todayAppointments,
+      value: stats.todayAppointments || 0,
       icon: Calendar,
       color: 'blue',
       bgColor: 'bg-blue-50',
@@ -80,18 +96,18 @@ const DashboardStats = () => {
     },
     {
       title: 'Factures en attente',
-      value: stats.pendingInvoices,
+      value: stats.pendingInvoices || 0,
       icon: FileText,
       color: 'yellow',
       bgColor: 'bg-yellow-50',
       iconColor: 'text-yellow-600',
       valueColor: 'text-yellow-600',
       description: 'Factures non payées',
-      alert: stats.pendingInvoices > 10
+      alert: (stats.pendingInvoices || 0) > 10
     },
     {
       title: 'Total patients',
-      value: stats.totalPatients,
+      value: stats.totalPatients || 0,
       icon: Users,
       color: 'green',
       bgColor: 'bg-green-50',
@@ -101,7 +117,7 @@ const DashboardStats = () => {
     },
     {
       title: 'Prochains RDV',
-      value: stats.upcomingAppointments.length,
+      value: (stats.upcomingAppointments && stats.upcomingAppointments.length) || 0,
       icon: Clock,
       color: 'purple',
       bgColor: 'bg-purple-50',
@@ -166,7 +182,7 @@ const DashboardStats = () => {
       </div>
 
       {/* Résumé rapide des prochains RDV */}
-      {stats.upcomingAppointments.length > 0 && (
+      {stats.upcomingAppointments && stats.upcomingAppointments.length > 0 && (
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">
@@ -179,7 +195,7 @@ const DashboardStats = () => {
           
           <div className="space-y-3">
             {stats.upcomingAppointments.slice(0, 3).map((appointment, index) => (
-              <div key={appointment.id_r} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div key={appointment.id_r || index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div className="flex items-center space-x-3">
                   <div className="flex-shrink-0">
                     <div className="h-2 w-2 bg-blue-600 rounded-full"></div>
@@ -218,7 +234,7 @@ const DashboardStats = () => {
       {/* Alertes et notifications */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Alerte factures en retard */}
-        {stats.pendingInvoices > 5 && (
+        {(stats.pendingInvoices || 0) > 5 && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
             <div className="flex items-start">
               <AlertCircle className="h-5 w-5 text-amber-400 mt-0.5 mr-3" />
@@ -236,7 +252,7 @@ const DashboardStats = () => {
         )}
 
         {/* Information positive */}
-        {stats.todayAppointments === 0 && (
+        {(stats.todayAppointments || 0) === 0 && (
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
             <div className="flex items-start">
               <Calendar className="h-5 w-5 text-green-400 mt-0.5 mr-3" />
@@ -259,9 +275,10 @@ const DashboardStats = () => {
         <button
           onClick={fetchDashboardStats}
           className="inline-flex items-center px-3 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors duration-200"
+          disabled={loading}
         >
           <svg
-            className="w-4 h-4 mr-2 animate-spin text-gray-500"
+            className={`w-4 h-4 mr-2 text-gray-500 ${loading ? 'animate-spin' : ''}`}
             fill="none"
             stroke="currentColor"
             strokeWidth="2"
@@ -273,7 +290,7 @@ const DashboardStats = () => {
               d="M4 4v5h.582M20 20v-5h-.581M4 20l4-4m0 0v.01M20 4l-4 4m0 0v-.01"
             />
           </svg>
-          Rafraîchir
+          {loading ? 'Chargement...' : 'Rafraîchir'}
         </button>
       </div>
     </div>

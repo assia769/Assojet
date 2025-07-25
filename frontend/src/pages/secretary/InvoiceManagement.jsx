@@ -10,17 +10,18 @@ import {
   Check, 
   Clock, 
   X,
-  Eye,
   Edit,
   CreditCard,
   Banknote,
   Wallet
 } from 'lucide-react';
+import { secretaryService } from '../../services/secretaryService';
 
 const InvoiceManagement = () => {
   const [invoices, setInvoices] = useState([]);
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [patientFilter, setPatientFilter] = useState('');
@@ -28,65 +29,105 @@ const InvoiceManagement = () => {
   const [showUpdateModal, setShowUpdateModal] = useState(false);
 
   useEffect(() => {
-    fetchInvoices();
-    fetchPatients();
+    loadData();
   }, []);
 
-  const fetchInvoices = async () => {
+  const loadData = async () => {
+    setLoading(true);
+    setError(null);
+    
     try {
-      const params = new URLSearchParams();
-      if (statusFilter !== 'all') params.append('status', statusFilter);
-      if (patientFilter) params.append('patientId', patientFilter);
-
-      const response = await fetch(`/api/secretary/invoices?${params}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setInvoices(data);
-      }
+      await Promise.all([
+        fetchInvoices(),
+        fetchPatients()
+      ]);
     } catch (error) {
-      console.error('Erreur lors du chargement des factures:', error);
+      console.error('Erreur lors du chargement des données:', error);
+      setError('Erreur lors du chargement des données');
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchInvoices = async () => {
+    try {
+      const params = {};
+      if (statusFilter !== 'all') params.status = statusFilter;
+      if (patientFilter) params.patientId = patientFilter;
+
+      const response = await secretaryService.getInvoices(params);
+      const rawInvoices = response || [];
+
+      console.log("🔎 Response brute invoices:", response);
+      // console.log("📦 Invoices data:", response.data);
+      // console.log("📦 Invoices data.data:", response.data?.data);
+
+      setInvoices(rawInvoices);
+    } catch (error) {
+      console.error('Erreur lors du chargement des factures:', error);
+      setInvoices([]);
+      throw error;
+    }
+  };
+
   const fetchPatients = async () => {
     try {
-      const response = await fetch('/api/secretary/patients', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setPatients(data);
-      }
+      const data = await secretaryService.getPatients();
+      setPatients(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Erreur lors du chargement des patients:', error);
+      setPatients([]);
+      throw error;
     }
   };
 
   const updateInvoiceStatus = async (invoiceId, status, modePaiement) => {
     try {
-      const response = await fetch(`/api/secretary/invoices/${invoiceId}/status`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({ status, modePaiement })
+      console.log('Mise à jour facture:', { invoiceId, status, modePaiement });
+      
+      await secretaryService.updateInvoiceStatus(invoiceId, { 
+        status, 
+        modePaiement 
       });
-
-      if (response.ok) {
-        fetchInvoices();
-        setShowUpdateModal(false);
-      }
+      
+      await fetchInvoices();
+      setShowUpdateModal(false);
+      setSelectedInvoice(null);
+      
+      console.log('Facture mise à jour avec succès');
     } catch (error) {
       console.error('Erreur lors de la mise à jour de la facture:', error);
+      setError('Erreur lors de la mise à jour de la facture');
     }
   };
+
+  const handleFilterChange = async (filterType, value) => {
+    try {
+      if (filterType === 'status') {
+        setStatusFilter(value);
+      } else if (filterType === 'patient') {
+        setPatientFilter(value);
+      }
+      
+      const params = {};
+      const newStatusFilter = filterType === 'status' ? value : statusFilter;
+      const newPatientFilter = filterType === 'patient' ? value : patientFilter;
+      
+      if (newStatusFilter !== 'all') params.status = newStatusFilter;
+      if (newPatientFilter) params.patientId = newPatientFilter;
+
+      const response = await secretaryService.getInvoices(params);
+      const rawInvoices = response || [];
+
+      setInvoices(rawInvoices);
+    } catch (error) {
+      console.error('Erreur lors de l\'application des filtres:', error);
+      setError('Erreur lors de l\'application des filtres');
+      setInvoices([]);
+    }
+  };
+
+
 
   const getStatusBadge = (status) => {
     const statusConfig = {
@@ -113,15 +154,26 @@ const InvoiceManagement = () => {
     }
   };
 
-  const filteredInvoices = invoices.filter(invoice => {
+  const getPaymentMethodLabel = (method) => {
+    switch(method) {
+      case 'carte': return 'Carte bancaire';
+      case 'especes': return 'Espèces';
+      case 'cheque': return 'Chèque';
+      case 'virement': return 'Virement';
+      default: return 'Non défini';
+    }
+  };
+
+  // Ensure invoices is always an array before filtering
+  const safeInvoices = Array.isArray(invoices) ? invoices : [];
+  const safePatients = Array.isArray(patients) ? patients : [];
+
+  const filteredInvoices = safeInvoices.filter(invoice => {
     const matchesSearch = !searchTerm || 
       `${invoice.patient_nom} ${invoice.patient_prenom}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
       invoice.id_f.toString().includes(searchTerm);
     
-    const matchesStatus = statusFilter === 'all' || invoice.statut === statusFilter;
-    const matchesPatient = !patientFilter || invoice.id_patient.toString() === patientFilter;
-    
-    return matchesSearch && matchesStatus && matchesPatient;
+    return matchesSearch;
   });
 
   const UpdateInvoiceModal = () => (
@@ -138,7 +190,7 @@ const InvoiceManagement = () => {
             </label>
             <select
               className="w-full p-2 border border-gray-300 rounded-lg"
-              defaultValue={selectedInvoice?.statut}
+              value={selectedInvoice?.statut || 'pending'}
               onChange={(e) => setSelectedInvoice({...selectedInvoice, statut: e.target.value})}
             >
               <option value="pending">En attente</option>
@@ -153,7 +205,7 @@ const InvoiceManagement = () => {
             </label>
             <select
               className="w-full p-2 border border-gray-300 rounded-lg"
-              defaultValue={selectedInvoice?.mode_paiement}
+              value={selectedInvoice?.mode_paiement || ''}
               onChange={(e) => setSelectedInvoice({...selectedInvoice, mode_paiement: e.target.value})}
             >
               <option value="">Sélectionner</option>
@@ -177,7 +229,10 @@ const InvoiceManagement = () => {
             Mettre à jour
           </button>
           <button
-            onClick={() => setShowUpdateModal(false)}
+            onClick={() => {
+              setShowUpdateModal(false);
+              setSelectedInvoice(null);
+            }}
             className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
           >
             Annuler
@@ -191,6 +246,24 @@ const InvoiceManagement = () => {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <X className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Erreur</h3>
+          <p className="text-gray-500 mb-4">{error}</p>
+          <button
+            onClick={loadData}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+          >
+            Réessayer
+          </button>
+        </div>
       </div>
     );
   }
@@ -235,10 +308,7 @@ const InvoiceManagement = () => {
             <select
               className="w-full p-2 border border-gray-300 rounded-lg"
               value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                fetchInvoices();
-              }}
+              onChange={(e) => handleFilterChange('status', e.target.value)}
             >
               <option value="all">Tous les statuts</option>
               <option value="pending">En attente</option>
@@ -254,13 +324,10 @@ const InvoiceManagement = () => {
             <select
               className="w-full p-2 border border-gray-300 rounded-lg"
               value={patientFilter}
-              onChange={(e) => {
-                setPatientFilter(e.target.value);
-                fetchInvoices();
-              }}
+              onChange={(e) => handleFilterChange('patient', e.target.value)}
             >
               <option value="">Tous les patients</option>
-              {patients.map(patient => (
+              {safePatients.map(patient => (
                 <option key={patient.id_p} value={patient.id_p}>
                   {patient.nom} {patient.prenom}
                 </option>
@@ -273,7 +340,7 @@ const InvoiceManagement = () => {
               Actions
             </label>
             <button
-              onClick={fetchInvoices}
+              onClick={loadData}
               className="w-full bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 flex items-center justify-center"
             >
               <Filter size={20} className="mr-2" />
@@ -290,7 +357,7 @@ const InvoiceManagement = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">En attente</p>
               <p className="text-2xl font-bold text-yellow-600">
-                {invoices.filter(i => i.statut === 'pending').length}
+                {safeInvoices.filter(i => i.statut === 'pending').length}
               </p>
             </div>
             <Clock className="h-8 w-8 text-yellow-600" />
@@ -302,7 +369,7 @@ const InvoiceManagement = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">Payées</p>
               <p className="text-2xl font-bold text-green-600">
-                {invoices.filter(i => i.statut === 'paid').length}
+                {safeInvoices.filter(i => i.statut === 'paid').length}
               </p>
             </div>
             <Check className="h-8 w-8 text-green-600" />
@@ -314,7 +381,7 @@ const InvoiceManagement = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">Annulées</p>
               <p className="text-2xl font-bold text-red-600">
-                {invoices.filter(i => i.statut === 'cancelled').length}
+                {safeInvoices.filter(i => i.statut === 'cancelled').length}
               </p>
             </div>
             <X className="h-8 w-8 text-red-600" />
@@ -326,7 +393,7 @@ const InvoiceManagement = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">Total payé</p>
               <p className="text-2xl font-bold text-blue-600">
-                {invoices
+                {safeInvoices
                   .filter(i => i.statut === 'paid')
                   .reduce((sum, i) => sum + parseFloat(i.prix || 0), 0)
                   .toFixed(2)}€
@@ -417,7 +484,7 @@ const InvoiceManagement = () => {
                     <div className="flex items-center">
                       {getPaymentMethodIcon(invoice.mode_paiement)}
                       <span className="ml-2 text-sm text-gray-900">
-                        {invoice.mode_paiement || 'Non défini'}
+                        {getPaymentMethodLabel(invoice.mode_paiement)}
                       </span>
                     </div>
                   </td>
@@ -429,6 +496,7 @@ const InvoiceManagement = () => {
                           setShowUpdateModal(true);
                         }}
                         className="text-blue-600 hover:text-blue-900"
+                        title="Modifier"
                       >
                         <Edit size={16} />
                       </button>
@@ -439,7 +507,7 @@ const InvoiceManagement = () => {
             </tbody>
           </table>
 
-          {filteredInvoices.length === 0 && (
+          {filteredInvoices.length === 0 && !loading && (
             <div className="text-center py-12">
               <FileText className="mx-auto h-12 w-12 text-gray-400" />
               <h3 className="mt-2 text-sm font-medium text-gray-900">Aucune facture</h3>

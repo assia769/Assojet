@@ -1,6 +1,6 @@
-// frontend/src/components/secretary/QuickActions.jsx
 import React, { useState } from 'react';
 import { Plus, Calendar, Users, FileText, Send, Clock } from 'lucide-react';
+import { secretaryService } from '../../services/secretaryService';
 
 const QuickActions = () => {
   const [sendingReminders, setSendingReminders] = useState(false);
@@ -8,22 +8,7 @@ const QuickActions = () => {
   const handleSendReminders = async () => {
     try {
       setSendingReminders(true);
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/secretary/send-reminders', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Erreur lors de l\'envoi des rappels');
-      }
-
-      const result = await response.json();
-      
-      // Afficher une notification de succès
+      const result = await secretaryService.sendReminders({});
       alert(`Rappels envoyés avec succès ! ${result.reminders.filter(r => r.status === 'sent').length} rappels envoyés.`);
     } catch (error) {
       console.error('Erreur envoi rappels:', error);
@@ -42,7 +27,6 @@ const QuickActions = () => {
       iconBg: 'bg-blue-100',
       iconColor: 'text-blue-600',
       action: () => {
-        // Navigation vers la page de création de RDV
         window.location.href = '/secretary/appointments?action=create';
       }
     },
@@ -87,14 +71,12 @@ const QuickActions = () => {
         <h3 className="text-lg font-semibold text-gray-900">
           Actions Rapides
         </h3>
-        
-        {/* Bouton d'envoi de rappels */}
         <button
           onClick={handleSendReminders}
           disabled={sendingReminders}
           className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white transition-colors ${
-            sendingReminders 
-              ? 'bg-gray-400 cursor-not-allowed' 
+            sendingReminders
+              ? 'bg-gray-400 cursor-not-allowed'
               : 'bg-indigo-600 hover:bg-indigo-700'
           }`}
         >
@@ -125,7 +107,6 @@ const QuickActions = () => {
                 <div className={`flex items-center justify-center w-12 h-12 ${action.iconBg} rounded-lg group-hover:scale-110 transition-transform duration-200`}>
                   <Icon className={`w-6 h-6 ${action.iconColor}`} />
                 </div>
-                
                 <div className="flex-1 min-w-0">
                   <h4 className="text-base font-semibold text-gray-900 group-hover:text-gray-700">
                     {action.title}
@@ -135,34 +116,12 @@ const QuickActions = () => {
                   </p>
                 </div>
               </div>
-
-              {/* Indicateur hover */}
               <div className="absolute inset-0 border-2 border-transparent group-hover:border-blue-300 rounded-lg transition-colors duration-200"></div>
             </button>
           );
         })}
       </div>
-
-      {/* Section statistiques rapides */}
-      <div className="mt-6 pt-6 border-t border-gray-200">
-        <h4 className="text-sm font-medium text-gray-700 mb-3">
-          Statuts des tâches
-        </h4>
-        <div className="flex items-center space-x-6 text-sm">
-          <div className="flex items-center">
-            <div className="w-3 h-3 bg-green-400 rounded-full mr-2"></div>
-            <span className="text-gray-600">Tâches complétées</span>
-          </div>
-          <div className="flex items-center">
-            <div className="w-3 h-3 bg-yellow-400 rounded-full mr-2"></div>
-            <span className="text-gray-600">En attente</span>
-          </div>
-          <div className="flex items-center">
-            <div className="w-3 h-3 bg-red-400 rounded-full mr-2"></div>
-            <span className="text-gray-600">Urgent</span>
-          </div>
-        </div>
-      </div>
+     
     </div>
   );
 };

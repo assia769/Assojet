@@ -1,6 +1,7 @@
 // frontend/src/pages/secretary/PatientManagement.jsx
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Edit, Phone, Mail, User, Filter } from 'lucide-react';
+import { secretaryService } from '../../services/secretaryService';
 
 const PatientManagement = () => {
   const [patients, setPatients] = useState([]);
@@ -27,20 +28,9 @@ const PatientManagement = () => {
   const fetchPatients = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/secretary/patients', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Erreur lors de la récupération des patients');
-      }
-
-      const data = await response.json();
-      setPatients(data);
+      setError(null);
+      const data = await secretaryService.getPatients();
+      setPatients(data || []);
     } catch (err) {
       setError(err.message);
       console.error('Erreur fetchPatients:', err);
@@ -49,53 +39,35 @@ const PatientManagement = () => {
     }
   };
 
-  const handleCreatePatient = async (e) => {
-    e.preventDefault();
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/secretary/patients', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(newPatient)
-      });
-
-      if (!response.ok) {
-        throw new Error('Erreur lors de la création du patient');
-      }
-
-      const createdPatient = await response.json();
-      setPatients([...patients, createdPatient]);
-      setShowCreateModal(false);
-      setNewPatient({
-        nom: '', prenom: '', email: '', telephone: '', adresse: '', date_naiss: '', sexe: ''
-      });
-      alert('Patient créé avec succès !');
-    } catch (err) {
-      alert('Erreur: ' + err.message);
-    }
-  };
+ const handleCreatePatient = async (e) => {
+  e.preventDefault();
+  try {
+    await secretaryService.createPatient(newPatient);
+    
+    // Toujours recharger la liste pour éviter les problèmes de synchronisation
+    await fetchPatients();
+    
+    setShowCreateModal(false);
+    setNewPatient({
+      nom: '', 
+      prenom: '', 
+      email: '', 
+      telephone: '', 
+      adresse: '', 
+      date_naiss: '', 
+      sexe: ''
+    });
+    alert('Patient créé avec succès !');
+  } catch (err) {
+    alert('Erreur: ' + err.message);
+  }
+};
 
   const handleUpdatePatient = async (e) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/secretary/patients/${editingPatient.id_p}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(editingPatient)
-      });
-
-      if (!response.ok) {
-        throw new Error('Erreur lors de la mise à jour du patient');
-      }
-
-      await fetchPatients();
+      await secretaryService.updatePatient(editingPatient.id_p, editingPatient);
+      await fetchPatients(); // Recharger la liste pour avoir les données à jour
       setEditingPatient(null);
       alert('Patient mis à jour avec succès !');
     } catch (err) {
@@ -104,17 +76,19 @@ const PatientManagement = () => {
   };
 
   const filteredPatients = patients.filter(patient =>
-    patient.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    patient.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    patient.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    patient.telephone.includes(searchTerm)
+    patient.nom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    patient.prenom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    patient.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    patient.telephone?.includes(searchTerm)
   );
 
   const formatDate = (dateString) => {
+    if (!dateString) return '';
     return new Date(dateString).toLocaleDateString('fr-FR');
   };
 
   const calculateAge = (birthDate) => {
+    if (!birthDate) return 'N/A';
     const today = new Date();
     const birth = new Date(birthDate);
     let age = today.getFullYear() - birth.getFullYear();

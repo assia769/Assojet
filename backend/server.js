@@ -74,8 +74,8 @@ app.use((req, res, next) => {
 
   maintenanceMiddleware(req, res, next);
 });
+app.use('/api/secretary', secretaryRoutes); 
 
-app.use('/api/secretary', secretaryRoutes);
 // app.use('/api/patients', patientRoutes);
 
 app.get('/api/test', (req, res) => {

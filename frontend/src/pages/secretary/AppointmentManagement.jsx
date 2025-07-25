@@ -1,6 +1,7 @@
-//frontend\src\pages\secretary\AppointmentManagement.jsx
+// frontend/src/pages/secretary/AppointmentManagement.jsx
 import React, { useState, useEffect } from 'react';
-import { Plus, Calendar, Search, Filter, Edit, Trash2, X, Save, Eye } from 'lucide-react';
+import { Plus, Calendar, Search, Filter, Edit, Trash2, X, Save } from 'lucide-react';
+import { secretaryService } from '../../services/secretaryService';
 
 const AppointmentManagement = () => {
   const [appointments, setAppointments] = useState([]);
@@ -29,14 +30,13 @@ const AppointmentManagement = () => {
 
   const fetchAppointments = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/secretary/appointments', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
-      setAppointments(data);
+      const data = await secretaryService.getAppointments();
+      console.log('donnes de rdv',data) ;     
+      // Assurez-vous que data est un tableau
+      setAppointments(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Erreur lors du chargement des RDV:', error);
+      setAppointments([]); // Remettre appointments à un tableau vide en cas d'erreur
     } finally {
       setLoading(false);
     }
@@ -44,11 +44,7 @@ const AppointmentManagement = () => {
 
   const fetchMedecins = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/secretary/medecins', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
+      const data = await secretaryService.getMedecins();
       setMedecins(data);
     } catch (error) {
       console.error('Erreur lors du chargement des médecins:', error);
@@ -57,11 +53,7 @@ const AppointmentManagement = () => {
 
   const fetchPatients = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/secretary/patients', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
+      const data = await secretaryService.getPatients();
       setPatients(data);
     } catch (error) {
       console.error('Erreur lors du chargement des patients:', error);
@@ -69,6 +61,13 @@ const AppointmentManagement = () => {
   };
 
   const applyFilters = () => {
+    // Vérifiez que appointments est un tableau
+    if (!Array.isArray(appointments)) {
+      console.error('appointments n\'est pas un tableau');
+      setFilteredAppointments([]);
+      return;
+    }
+
     let filtered = [...appointments];
 
     if (filters.date) {
@@ -96,20 +95,10 @@ const AppointmentManagement = () => {
 
   const handleCreateAppointment = async (formData) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/secretary/appointments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(formData)
-      });
-
-      if (response.ok) {
-        fetchAppointments();
-        setShowCreateForm(false);
-      }
+      console.log('data de creation :',formData);
+      await secretaryService.createAppointment(formData);
+      fetchAppointments();
+      setShowCreateForm(false);
     } catch (error) {
       console.error('Erreur lors de la création du RDV:', error);
     }
@@ -117,20 +106,9 @@ const AppointmentManagement = () => {
 
   const handleUpdateAppointment = async (id, formData) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/secretary/appointments/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(formData)
-      });
-
-      if (response.ok) {
-        fetchAppointments();
-        setEditingAppointment(null);
-      }
+      await secretaryService.updateAppointment(id, formData);
+      fetchAppointments();
+      setEditingAppointment(null);
     } catch (error) {
       console.error('Erreur lors de la modification:', error);
     }
@@ -139,14 +117,10 @@ const AppointmentManagement = () => {
   const handleCancelAppointment = async (id) => {
     if (window.confirm('Êtes-vous sûr de vouloir annuler ce rendez-vous ?')) {
       try {
-        const token = localStorage.getItem('token');
-        await fetch(`/api/secretary/appointments/${id}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        await secretaryService.cancelAppointment(id);
         fetchAppointments();
       } catch (error) {
-        console.error('Erreur lors de l\'annulation:', error);
+        console.error("Erreur lors de l'annulation:", error);
       }
     }
   };
@@ -204,7 +178,7 @@ const AppointmentManagement = () => {
               className="w-full border border-gray-300 rounded-md px-3 py-2"
             >
               <option value="">Tous les médecins</option>
-              {medecins.map(medecin => (
+              {medecins && medecins.length > 0 && medecins.map(medecin => (
                 <option key={medecin.id_m} value={medecin.id_m}>
                   Dr. {medecin.nom} {medecin.prenom} - {medecin.specialite}
                 </option>
@@ -270,73 +244,75 @@ const AppointmentManagement = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredAppointments.map((appointment) => (
-                <tr key={appointment.id_r} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">
-                        {appointment.patient_nom} {appointment.patient_prenom}
+              {filteredAppointments.length > 0 ? (
+                filteredAppointments.map((appointment) => (
+                  <tr key={appointment.id_r} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {appointment.patient_nom} {appointment.patient_prenom}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {appointment.patient_telephone}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          Dr. {appointment.medecin_nom} {appointment.medecin_prenom}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {appointment.specialite}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {new Date(appointment.date_rend).toLocaleDateString('fr-FR')}
                       </div>
                       <div className="text-sm text-gray-500">
-                        {appointment.patient_telephone}
+                        {appointment.heure}
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">
-                        Dr. {appointment.medecin_nom} {appointment.medecin_prenom}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-gray-900 max-w-xs truncate">
+                        {appointment.motif}
                       </div>
-                      <div className="text-sm text-gray-500">
-                        {appointment.specialite}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {getStatusBadge(appointment.statut)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => setEditingAppointment(appointment)}
+                          className="text-blue-600 hover:text-blue-900"
+                          title="Modifier"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleCancelAppointment(appointment.id_r)}
+                          className="text-red-600 hover:text-red-900"
+                          title="Annuler"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {new Date(appointment.date_rend).toLocaleDateString('fr-FR')}
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      {appointment.heure}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm text-gray-900 max-w-xs truncate">
-                      {appointment.motif}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getStatusBadge(appointment.statut)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => setEditingAppointment(appointment)}
-                        className="text-blue-600 hover:text-blue-900"
-                        title="Modifier"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleCancelAppointment(appointment.id_r)}
-                        className="text-red-600 hover:text-red-900"
-                        title="Annuler"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="6" className="text-center py-8 text-gray-500">
+                    Aucun rendez-vous trouvé
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
-
-        {filteredAppointments.length === 0 && (
-          <div className="text-center py-8 text-gray-500">
-            Aucun rendez-vous trouvé
-          </div>
-        )}
       </div>
 
       {/* Modal Création RDV */}
@@ -381,6 +357,10 @@ const AppointmentForm = ({ appointment, patients, medecins, onSubmit, onClose, i
     onSubmit(formData);
   };
 
+  // if (!patients || !medecins) {
+  //   return <div>Chargement des données...</div>;
+  // }
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
@@ -403,7 +383,7 @@ const AppointmentForm = ({ appointment, patients, medecins, onSubmit, onClose, i
               className="w-full border border-gray-300 rounded-md px-3 py-2"
             >
               <option value="">Sélectionner un patient</option>
-              {patients.map(patient => (
+              {patients && patients.map(patient => (
                 <option key={patient.id_p} value={patient.id_p}>
                   {patient.nom} {patient.prenom}
                 </option>
@@ -420,7 +400,7 @@ const AppointmentForm = ({ appointment, patients, medecins, onSubmit, onClose, i
               className="w-full border border-gray-300 rounded-md px-3 py-2"
             >
               <option value="">Sélectionner un médecin</option>
-              {medecins.map(medecin => (
+              {medecins && medecins.map(medecin => (
                 <option key={medecin.id_m} value={medecin.id_m}>
                   Dr. {medecin.nom} {medecin.prenom} - {medecin.specialite}
                 </option>

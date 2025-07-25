@@ -32,28 +32,6 @@ import PublicLayout from './components/layout/PublicLayout';
 import AdminLayout from './components/layout/AdminLayout';
 import SecretaryLayout from './components/layout/SecretaryLayout';
 
-// Protected Route Component
-// const ProtectedRoute = ({ children, requiredRole }) => {
-//   const { user, loading } = useAuth();
-
-//   if (loading) {
-//     return (
-//       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-//         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
-//       </div>
-//     );
-//   }
-
-//   if (!user) {
-//     return <Navigate to="/login" replace />;
-//   }
-
-//   if (requiredRole && user.role !== requiredRole) {
-//     return <Navigate to="/" replace />;
-//   }
-
-//   return children;
-// };
 const ProtectedRoute = ({ children, requiredRole }) => {
   const { user, loading } = useAuth();
 

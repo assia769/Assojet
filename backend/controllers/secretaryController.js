@@ -20,7 +20,7 @@ exports.getDashboardStats = async (req, res) => {
 
     // Total patients
     const totalPatientsResult = await pool.query(
-      'SELECT COUNT(*) FROM patient'
+      'SELECT COUNT(*) FROM patient' ,
     );
 
     // Prochains RDV
@@ -37,13 +37,15 @@ exports.getDashboardStats = async (req, res) => {
       ORDER BY r.date_rend ASC
       LIMIT 5
     `);
-
     res.json({
-      todayAppointments: parseInt(todayAppointmentsResult.rows[0].count),
-      pendingInvoices: parseInt(pendingInvoicesResult.rows[0].count),
-      totalPatients: parseInt(totalPatientsResult.rows[0].count),
-      upcomingAppointments: upcomingAppointmentsResult.rows
-    });
+        data: {
+          todayAppointments: parseInt(todayAppointmentsResult.rows[0].count),
+          pendingInvoices: parseInt(pendingInvoicesResult.rows[0].count),
+          totalPatients: parseInt(totalPatientsResult.rows[0].count),
+          upcomingAppointments: upcomingAppointmentsResult.rows
+        }
+});
+
   } catch (error) {
     console.error('Erreur getDashboardStats:', error);
     res.status(500).json({ message: error.message });
@@ -54,6 +56,8 @@ exports.getDashboardStats = async (req, res) => {
 exports.getAppointments = async (req, res) => {
   try {
     const { date, medecinId, status } = req.query;
+    console.log('Params reçus:', { date, medecinId, status }); // Ajout de log
+
     let query = `
       SELECT r.*, 
              u_p.nom as patient_nom, u_p.prenom as patient_prenom, 
@@ -91,8 +95,15 @@ exports.getAppointments = async (req, res) => {
 
     query += ' ORDER BY r.date_rend ASC';
 
+    console.log('Requête SQL:', query, 'Params:', params); // Ajout de log
+
     const result = await pool.query(query, params);
-    res.json(result.rows);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Aucun rendez-vous trouvé' });
+    }
+
+    res.json({data: result.rows});
   } catch (error) {
     console.error('Erreur getAppointments:', error);
     res.status(500).json({ message: error.message });
@@ -100,41 +111,71 @@ exports.getAppointments = async (req, res) => {
 };
 
 exports.createAppointment = async (req, res) => {
-  const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    console.log('📝 Données reçues:', req.body);
+    
+    const { patientId, medecinId, date, heure, motif, type, salle, statut } = req.body;
 
-    const { patientId, medecinId, date, heure, motif, type, salle } = req.body;
+    // Validation des champs requis
+    if (!patientId || !medecinId || !date || !heure || !motif) {
+      console.log('❌ Champs manquants');
+      return res.status(400).json({ 
+        error: 'Tous les champs obligatoires doivent être remplis',
+        missing: {
+          patientId: !patientId,
+          medecinId: !medecinId,
+          date: !date,
+          heure: !heure,
+          motif: !motif
+        }
+      });
+    }
 
-    const result = await client.query(`
-      INSERT INTO rendezvous (id_patient, id_medecin, date_rend, heure, motif, type, salle, statut)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, 'confirmé')
+    console.log('🔍 Validation:', {
+      patientId: !!patientId,
+      medecinId: !!medecinId,
+      date: !!date,
+      heure: !!heure,
+      motif: !!motif
+    });
+
+    // Requête d'insertion sans spécifier l'ID (laisse la base générer l'ID automatiquement)
+    const query = `
+      INSERT INTO rendezvous (id_patient, id_medecin, date_rend, heure, motif, type, salle, statut) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
       RETURNING *
-    `, [patientId, medecinId, date, heure, motif, type, salle]);
+    `;
 
-    // Récupérer les détails complets
-    const appointmentDetails = await client.query(`
-      SELECT r.*, 
-             u_p.nom as patient_nom, u_p.prenom as patient_prenom,
-             u_m.nom as medecin_nom, u_m.prenom as medecin_prenom
-      FROM rendezvous r
-      JOIN patient p ON r.id_patient = p.id_p
-      JOIN utilisateur u_p ON p.id_u = u_p.id_u
-      JOIN medecin m ON r.id_medecin = m.id_m
-      JOIN utilisateur u_m ON m.id_u = u_m.id_u
-      WHERE r.id_r = $1
-    `, [result.rows[0].id_r]);
+    const values = [
+      parseInt(patientId),
+      parseInt(medecinId),
+      date,
+      heure,
+      motif,
+      type || 'consultation',
+      salle || '',
+      statut || 'confirmé'
+    ];
 
-    await client.query('COMMIT');
-    res.status(201).json(appointmentDetails.rows[0]);
+    console.log('🔄 Executing query with values:', values);
+
+    const result = await pool.query(query, values);
+    
+    console.log('✅ Rendez-vous créé:', result.rows[0]);
+    res.status(201).json({
+      message: 'Rendez-vous créé avec succès',
+      appointment: result.rows[0]
+    });
+
   } catch (error) {
-    await client.query('ROLLBACK');
     console.error('Erreur createAppointment:', error);
-    res.status(400).json({ message: error.message });
-  } finally {
-    client.release();
+    res.status(500).json({ 
+      error: 'Erreur lors de la création du rendez-vous',
+      details: error.message 
+    });
   }
 };
+
 
 exports.updateAppointment = async (req, res) => {
   try {
@@ -191,7 +232,7 @@ exports.getPatients = async (req, res) => {
       ORDER BY u.nom ASC
     `);
     
-    res.json(result.rows);
+    res.json({data: result.rows});
   } catch (error) {
     console.error('Erreur getPatients:', error);
     res.status(500).json({ message: error.message });
@@ -261,27 +302,41 @@ exports.updatePatient = async (req, res) => {
 };
 
 // Gestion des factures
+// Gestion des factures
 exports.getInvoices = async (req, res) => {
   try {
     const { status, patientId } = req.query;
+    console.log('📋 getInvoices appelé avec:', { status, patientId });
+     
     let query = `
-      SELECT f.*, 
-             u.nom as patient_nom, u.prenom as patient_prenom,
-             c.date_cons, c.diagnostic
+      SELECT f.id_f,
+             f.date_f,
+             f.prix,
+             f.statut,
+             f.mode_paiement,
+             u.nom as patient_nom, 
+             u.prenom as patient_prenom,
+             c.diagnostic,
+             p.id_p
       FROM facture f
       JOIN patient p ON f.id_patient = p.id_p
       JOIN utilisateur u ON p.id_u = u.id_u
       LEFT JOIN consultation c ON f.id_cons = c.id_cons
       WHERE 1=1
     `;
-    
+     
     const params = [];
     let paramCount = 0;
 
-    if (status) {
+    if (status && status !== 'all') {
       paramCount++;
-      query += ` AND f.statut = $${paramCount}`;
-      params.push(status);
+      let dbStatus = status;
+      if (status === 'pending') {
+        dbStatus = 'unpaid';
+      }
+
+      query += ` AND (f.statut::json->>'status') = $${paramCount}`;
+      params.push(dbStatus);
     }
 
     if (patientId) {
@@ -292,11 +347,57 @@ exports.getInvoices = async (req, res) => {
 
     query += ' ORDER BY f.date_f DESC';
 
+    console.log('📊 Exécution requête SQL:', query);
+    console.log('📊 Paramètres:', params);
+
     const result = await pool.query(query, params);
-    res.json(result.rows);
+    
+    const invoices = result.rows.map(invoice => {
+      let parsedStatus = 'pending';
+      let parsedPaymentMethod = invoice.mode_paiement;
+
+      try {
+        if (typeof invoice.statut === 'string' && invoice.statut.startsWith('{')) {
+          const statusData = JSON.parse(invoice.statut);
+          parsedStatus = statusData.status || 'pending';
+          if (parsedStatus === 'unpaid') {
+            parsedStatus = 'pending';
+          }
+          parsedPaymentMethod = statusData.modePaiement || invoice.mode_paiement;
+        } else if (typeof invoice.statut === 'object' && invoice.statut !== null) {
+          parsedStatus = invoice.statut.status || 'pending';
+          if (parsedStatus === 'unpaid') {
+            parsedStatus = 'pending';
+          }
+          parsedPaymentMethod = invoice.statut.modePaiement || invoice.mode_paiement;
+        } else {
+          parsedStatus = invoice.statut || 'pending';
+          if (parsedStatus === 'unpaid') {
+            parsedStatus = 'pending';
+          }
+        }
+      } catch (error) {
+        console.warn('Erreur parsing statut pour facture', invoice.id_f, ':', error);
+        parsedStatus = 'pending';
+      }
+
+      return {
+        ...invoice,
+        statut: parsedStatus,
+        mode_paiement: parsedPaymentMethod
+      };
+    });
+     
+    console.log('✅ Factures récupérées et parsées:', invoices.length);
+    res.json({ data: invoices });
+       
   } catch (error) {
-    console.error('Erreur getInvoices:', error);
-    res.status(500).json({ message: error.message });
+    console.error('❌ Erreur getInvoices:', error);
+    console.error('Stack:', error.stack);
+    res.status(500).json({ 
+      message: 'Erreur lors de la récupération des factures',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Erreur interne'
+    });
   }
 };
 
@@ -304,13 +405,19 @@ exports.createInvoice = async (req, res) => {
   try {
     const { consultationId, patientId, prix, modePaiement } = req.body;
 
+    // Créer l'objet statut au format JSON
+    const statutData = {
+      status: 'pending',
+      modePaiement: modePaiement || null
+    };
+
     const result = await pool.query(`
       INSERT INTO facture (id_cons, id_patient, date_f, prix, statut, mode_paiement)
-      VALUES ($1, $2, CURRENT_DATE, $3, 'pending', $4)
+      VALUES ($1, $2, CURRENT_DATE, $3, $4, $5)
       RETURNING *
-    `, [consultationId, patientId, prix, modePaiement]);
+    `, [consultationId, patientId, prix, JSON.stringify(statutData), modePaiement]);
 
-    res.status(201).json(result.rows[0]);
+    res.status(201).json({ data: result.rows[0] });
   } catch (error) {
     console.error('Erreur createInvoice:', error);
     res.status(400).json({ message: error.message });
@@ -322,24 +429,52 @@ exports.updateInvoiceStatus = async (req, res) => {
     const { id } = req.params;
     const { status, modePaiement } = req.body;
 
+    console.log('🔄 Mise à jour facture:', { id, status, modePaiement });
+
+    // Convertir "pending" en "unpaid" pour la DB
+    let dbStatus = status;
+    if (status === 'pending') {
+      dbStatus = 'unpaid';
+    }
+
+    const statutData = {
+      status: dbStatus,
+      modePaiement: modePaiement || null
+    };
+
     const result = await pool.query(`
       UPDATE facture 
       SET statut = $1, mode_paiement = $2
       WHERE id_f = $3
       RETURNING *
-    `, [status, modePaiement, id]);
+    `, [JSON.stringify(statutData), modePaiement, id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Facture non trouvée' });
     }
 
-    res.json(result.rows[0]);
+    // Reconvertir pour le frontend
+    let frontendStatus = dbStatus;
+    if (dbStatus === 'unpaid') {
+      frontendStatus = 'pending';
+    }
+
+    res.json({
+      data: {
+        ...result.rows[0],
+        statut: frontendStatus,
+        mode_paiement: modePaiement
+      }
+    });
+
   } catch (error) {
-    console.error('Erreur updateInvoiceStatus:', error);
-    res.status(400).json({ message: error.message });
+    console.error('❌ Erreur updateInvoiceStatus:', error);
+    res.status(500).json({
+      message: 'Erreur lors de la mise à jour de la facture',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Erreur interne'
+    });
   }
 };
-
 // Calendrier
 exports.getCalendarView = async (req, res) => {
   try {
@@ -359,7 +494,7 @@ exports.getCalendarView = async (req, res) => {
       ORDER BY r.date_rend, r.heure
     `, [startDate, endDate]);
 
-    res.json(result.rows);
+    res.json({data: result.rows});
   } catch (error) {
     console.error('Erreur getCalendarView:', error);
     res.status(500).json({ message: error.message });
@@ -423,7 +558,7 @@ exports.getMedecins = async (req, res) => {
       ORDER BY u.nom ASC
     `);
     
-    res.json(result.rows);
+    res.json({data:result.rows});
   } catch (error) {
     console.error('Erreur getMedecins:', error);
     res.status(500).json({ message: error.message });

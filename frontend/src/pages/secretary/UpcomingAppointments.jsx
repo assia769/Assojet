@@ -1,6 +1,6 @@
-// frontend/src/components/secretary/UpcomingAppointments.jsx
 import React, { useState, useEffect } from 'react';
 import { Clock, User, Stethoscope, Calendar, Eye } from 'lucide-react';
+import { secretaryService } from '../../services/secretaryService';
 
 const UpcomingAppointments = () => {
   const [appointments, setAppointments] = useState([]);
@@ -14,20 +14,8 @@ const UpcomingAppointments = () => {
   const fetchUpcomingAppointments = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/secretary/dashboard/stats', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Erreur lors de la récupération des rendez-vous');
-      }
-
-      const data = await response.json();
-      setAppointments(data.upcomingAppointments || []);
+      const stats = await secretaryService.getDashboardStats();
+      setAppointments(stats.upcomingAppointments || []);
     } catch (err) {
       setError(err.message);
       console.error('Erreur fetchUpcomingAppointments:', err);
@@ -46,7 +34,7 @@ const UpcomingAppointments = () => {
   };
 
   const formatTime = (timeString) => {
-    return timeString.slice(0, 5); // HH:MM
+    return timeString.slice(0, 5);
   };
 
   const getStatusColor = (status) => {
@@ -135,14 +123,14 @@ const UpcomingAppointments = () => {
                     <Clock className="h-6 w-6 text-blue-600" />
                   </div>
                 </div>
-                
+
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center space-x-2">
                     <p className="text-sm font-medium text-gray-900 truncate">
                       {appointment.patient_prenom} {appointment.patient_nom}
                     </p>
                   </div>
-                  
+
                   <div className="flex items-center space-x-4 mt-1">
                     <div className="flex items-center text-xs text-gray-500">
                       <Calendar className="h-3 w-3 mr-1" />
