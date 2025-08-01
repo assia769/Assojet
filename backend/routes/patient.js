@@ -1,4 +1,4 @@
-// backend/routes/patient.js - Version corrigée pour votre DB
+// backend/routes/patient.js - Version corrigée avec route sendMessage
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/database');
@@ -333,7 +333,7 @@ router.get('/documents', async (req, res) => {
   }
 });
 
-// Messages
+// Messages - GET
 router.get('/messages', async (req, res) => {
   try {
     const userId = req.user.id;
@@ -370,6 +370,129 @@ router.get('/messages', async (req, res) => {
     res.status(500).json({ 
       success: false,
       message: 'Erreur serveur', 
+      error: error.message 
+    });
+  }
+});
+
+// Messages - POST (ROUTE MANQUANTE - C'EST LE PROBLÈME !)
+router.post('/messages/send', async (req, res) => {
+  try {
+    const userId = req.user.id; // ID de l'expéditeur (patient connecté)
+    const { recipient_id, subject, content } = req.body;
+    
+    // Validation des données
+    if (!recipient_id || !subject || !content) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Données manquantes (recipient_id, subject, content requis)' 
+      });
+    }
+    
+    // Vérifier que le destinataire existe et est un médecin
+    const doctorQuery = `
+      SELECT u.id_u, u.nom, u.prenom 
+      FROM utilisateur u
+      INNER JOIN medecin m ON u.id_u = m.id_u
+      WHERE u.id_u = $1 AND u.role = 'medecin'
+    `;
+    const doctorResult = await pool.query(doctorQuery, [recipient_id]);
+    
+    if (doctorResult.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Médecin destinataire non trouvé' 
+      });
+    }
+    
+    // Insérer le message
+    const insertQuery = `
+      INSERT INTO message (
+        id_expediteur, 
+        id_destinataire, 
+        objet, 
+        contenu, 
+        date_mess, 
+        lu
+      )
+      VALUES ($1, $2, $3, $4, NOW(), false)
+      RETURNING *
+    `;
+    
+    const result = await pool.query(insertQuery, [
+      userId,
+      recipient_id,
+      subject.trim(),
+      content.trim()
+    ]);
+    
+    // Créer une notification pour le médecin
+    const notificationQuery = `
+      INSERT INTO notification (id_utilisateur, date_envoi, contenu, vu)
+      VALUES ($1, NOW(), $2, false)
+    `;
+    await pool.query(notificationQuery, [
+      recipient_id,
+      `Nouveau message de ${req.user.nom} ${req.user.prenom}: ${subject}`
+    ]);
+    
+    res.status(201).json({
+      success: true,
+      message: 'Message envoyé avec succès',
+      data: result.rows[0]
+    });
+    
+  } catch (error) {
+    console.error('Erreur envoi message:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Erreur lors de l\'envoi du message', 
+      error: error.message 
+    });
+  }
+});
+
+// Marquer un message comme lu
+router.put('/messages/:messageId/read', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { messageId } = req.params;
+    
+    if (!messageId || isNaN(messageId)) {
+      return res.status(400).json({ message: 'ID de message invalide' });
+    }
+    
+    // Vérifier que le message appartient au patient (en tant que destinataire)
+    const checkQuery = `
+      SELECT * FROM message 
+      WHERE id_mess = $1 AND id_destinataire = $2
+    `;
+    const messageResult = await pool.query(checkQuery, [messageId, userId]);
+    
+    if (messageResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Message non trouvé' });
+    }
+    
+    // Marquer comme lu
+    const updateQuery = `
+      UPDATE message 
+      SET lu = true
+      WHERE id_mess = $1
+      RETURNING *
+    `;
+    
+    const result = await pool.query(updateQuery, [messageId]);
+    
+    res.json({
+      success: true,
+      message: 'Message marqué comme lu',
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Erreur marquage message lu:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Erreur lors du marquage', 
       error: error.message 
     });
   }
@@ -450,6 +573,8 @@ router.get('/available-slots', async (req, res) => {
     });
   }
 });
+
+// Liste des médecins
 router.get('/doctors', async (req, res) => {
   try {
     const query = `
@@ -481,4 +606,5 @@ router.get('/doctors', async (req, res) => {
     });
   }
 });
+
 module.exports = router;

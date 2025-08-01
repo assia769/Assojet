@@ -9,6 +9,7 @@ import {
   DocumentTextIcon,
   ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
+import patientService from '../../services/PatientService'; 
 
 const PatientNotifications = () => {
   const [notifications, setNotifications] = useState([]);
@@ -21,17 +22,8 @@ const PatientNotifications = () => {
 
   const fetchNotifications = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/patient/notifications', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setNotifications(data);
-      }
+      const data = await patientService.getMyNotifications(); // Utiliser patientService
+      setNotifications(data);
     } catch (error) {
       console.error('Erreur chargement notifications:', error);
     } finally {
@@ -51,8 +43,8 @@ const PatientNotifications = () => {
   };
 
   const filteredNotifications = notifications.filter((n) => {
-    if (filter === 'unread') return !n.read;
-    if (filter === 'read') return n.read;
+    if (filter === 'unread') return !n.is_read; // Utiliser is_read pour le filtre
+    if (filter === 'read') return n.is_read;
     return true;
   });
 
@@ -75,8 +67,8 @@ const PatientNotifications = () => {
         <div className="flex flex-wrap gap-2">
           {[ 
             { key: 'all', label: 'Toutes', count: notifications.length },
-            { key: 'unread', label: 'Non lues', count: notifications.filter(n => !n.read).length },
-            { key: 'read', label: 'Lues', count: notifications.filter(n => n.read).length }
+            { key: 'unread', label: 'Non lues', count: notifications.filter(n => !n.is_read).length },
+            { key: 'read', label: 'Lues', count: notifications.filter(n => n.is_read).length }
           ].map((item) => (
             <button
               key={item.key}
@@ -107,7 +99,7 @@ const PatientNotifications = () => {
                 {getIcon(notif.type)}
               </div>
               <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium ${notif.read ? 'text-gray-500' : 'text-gray-900'}`}>
+                <p className={`text-sm font-medium ${notif.is_read ? 'text-gray-500' : 'text-gray-900'}`}>
                   {notif.title}
                 </p>
                 <p className="text-sm text-gray-500 mt-1">{notif.message}</p>
@@ -117,7 +109,7 @@ const PatientNotifications = () => {
                   })}
                 </p>
               </div>
-              {!notif.read && (
+              {!notif.is_read && (
                 <div className="ml-2">
                   <CheckIcon className="h-5 w-5 text-emerald-600" />
                 </div>
