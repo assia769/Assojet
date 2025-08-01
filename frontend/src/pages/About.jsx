@@ -48,7 +48,7 @@ const About = () => {
               <div className="grid grid-cols-2 gap-6">
                 <div className="text-center">
                   <Heart className="text-red-500 mx-auto mb-2" size={32} />
-                  <div className="text-2xl font-bold text-gray-800">500+</div>
+                  <div className="text-2xl font-bold text-gray-800">50+</div>
                   <div className="text-sm text-gray-600">Patients suivis</div>
                 </div>
                 <div className="text-center">

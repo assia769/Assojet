@@ -1,3 +1,4 @@
+
 // frontend/src/App.js
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
@@ -15,22 +16,30 @@ import Feedback from './pages/Feedback';
 import Login from './pages/Login';
 import Register from './pages/Register';
 
-
 // Pages Admin
 import AdminDashboard from './pages/admin/AdminDashboard';
 import UserManagement from './pages/admin/UserManagement';
 import SystemSettings from './pages/admin/SystemSettings';
 
-// Pages secretaire
+// Pages Secrétaire
 import SecretaryDashboard from './pages/secretary/SecretaryDashboard';
 import AppointmentManagement from './pages/secretary/AppointmentManagement';
 import PatientManagement from './pages/secretary/PatientManagement';
 import InvoiceManagement from './pages/secretary/InvoiceManagement';
 
-// Layout components
+// Pages Patient
+import PatientDashboard from './pages/patient/PatientDashboard';
+import AppointmentBooking from './pages/patient/AppointmentBooking';
+import PatientAppointments from './pages/patient/PatientAppointments';
+import PatientDocuments from './pages/patient/PatientDocuments';
+import PatientMessaging from './pages/patient/PatientMessaging';
+import PatientNotifications from './pages/patient/PatientNotifications';
+
+// Layouts
 import PublicLayout from './components/layout/PublicLayout';
 import AdminLayout from './components/layout/AdminLayout';
 import SecretaryLayout from './components/layout/SecretaryLayout';
+import PatientLayout from './components/layout/PatientLayout';
 
 const ProtectedRoute = ({ children, requiredRole }) => {
   const { user, loading } = useAuth();
@@ -48,11 +57,12 @@ const ProtectedRoute = ({ children, requiredRole }) => {
   }
 
   if (requiredRole && user.role !== requiredRole) {
-    // Redirection spécifique selon le rôle
     if (user.role === 'admin') {
       return <Navigate to="/admin" replace />;
     } else if (user.role === 'secretaire') {
       return <Navigate to="/secretary" replace />;
+    } else if (user.role === 'patient') {
+      return <Navigate to="/patient" replace />;
     }
     return <Navigate to="/" replace />;
   }
@@ -60,87 +70,38 @@ const ProtectedRoute = ({ children, requiredRole }) => {
   return children;
 };
 
-// App Routes Component (à l'intérieur des providers)
 const AppRoutes = () => {
   return (
     <Router>
       <div className="App">
         <Routes>
           {/* Routes publiques */}
-          <Route 
-            path="/" 
-            element={
-              <PublicLayout>
-                <Home />
-              </PublicLayout>
-            } 
-          />
-          <Route 
-            path="/about" 
-            element={
-              <PublicLayout>
-                <About />
-              </PublicLayout>
-            } 
-          />
-          <Route 
-            path="/feedback" 
-            element={
-              <PublicLayout>
-                <Feedback />
-              </PublicLayout>
-            } 
-          />
-          <Route 
-            path="/login" 
-            element={
-              <PublicLayout>
-                <Login />
-              </PublicLayout>
-            } 
-          />
-          <Route 
-            path="/register" 
-            element={
-              <PublicLayout>
-                <Register />
-              </PublicLayout>
-            } 
-          />
+          <Route path="/" element={<PublicLayout><Home /></PublicLayout>} />
+          <Route path="/about" element={<PublicLayout><About /></PublicLayout>} />
+          <Route path="/feedback" element={<PublicLayout><Feedback /></PublicLayout>} />
+          <Route path="/login" element={<PublicLayout><Login /></PublicLayout>} />
+          <Route path="/register" element={<PublicLayout><Register /></PublicLayout>} />
 
           {/* Routes Admin protégées */}
-          <Route 
-            path="/admin" 
-            element={
-              <ProtectedRoute requiredRole="admin">
-                <AdminLayout>
-                  <AdminDashboard />
-                </AdminLayout>
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/admin/users" 
-            element={
-              <ProtectedRoute requiredRole="admin">
-                <AdminLayout>
-                  <UserManagement />
-                </AdminLayout>
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/admin/settings" 
-            element={
-              <ProtectedRoute requiredRole="admin">
-                <AdminLayout>
-                  <SystemSettings />
-                </AdminLayout>
-              </ProtectedRoute>
-            } 
-          />
+          <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminLayout><AdminDashboard /></AdminLayout></ProtectedRoute>} />
+          <Route path="/admin/users" element={<ProtectedRoute requiredRole="admin"><AdminLayout><UserManagement /></AdminLayout></ProtectedRoute>} />
+          <Route path="/admin/settings" element={<ProtectedRoute requiredRole="admin"><AdminLayout><SystemSettings /></AdminLayout></ProtectedRoute>} />
 
-          {/* Routes utilisateur protégées (optionnel) */}
+          {/* Routes Secrétaire protégées */}
+          <Route path="/secretary" element={<ProtectedRoute requiredRole="secretaire"><SecretaryLayout><SecretaryDashboard /></SecretaryLayout></ProtectedRoute>} />
+          <Route path="/secretary/appointments" element={<ProtectedRoute requiredRole="secretaire"><SecretaryLayout><AppointmentManagement /></SecretaryLayout></ProtectedRoute>} />
+          <Route path="/secretary/patients" element={<ProtectedRoute requiredRole="secretaire"><SecretaryLayout><PatientManagement /></SecretaryLayout></ProtectedRoute>} />
+          <Route path="/secretary/invoices" element={<ProtectedRoute requiredRole="secretaire"><SecretaryLayout><InvoiceManagement /></SecretaryLayout></ProtectedRoute>} />
+
+          {/* Routes Patient protégées */}
+          <Route path="/patient" element={<ProtectedRoute requiredRole="patient"><PatientLayout><PatientDashboard /></PatientLayout></ProtectedRoute>} />
+          <Route path="/patient/book-appointment" element={<ProtectedRoute requiredRole="patient"><PatientLayout><AppointmentBooking /></PatientLayout></ProtectedRoute>} />
+          <Route path="/patient/appointments" element={<ProtectedRoute requiredRole="patient"><PatientLayout><PatientAppointments /></PatientLayout></ProtectedRoute>} />
+          <Route path="/patient/documents" element={<ProtectedRoute requiredRole="patient"><PatientLayout><PatientDocuments /></PatientLayout></ProtectedRoute>} />
+          <Route path="/patient/messaging" element={<ProtectedRoute requiredRole="patient"><PatientLayout><PatientMessaging /></PatientLayout></ProtectedRoute>} />
+          <Route path="/patient/notifications" element={<ProtectedRoute requiredRole="patient"><PatientLayout><PatientNotifications /></PatientLayout></ProtectedRoute>} />
+
+          {/* Tableau de bord général */}
           <Route 
             path="/dashboard" 
             element={
@@ -160,49 +121,8 @@ const AppRoutes = () => {
               </ProtectedRoute>
             } 
           />
-          {/* Routes Secrétaire protégées */}
-<Route 
-  path="/secretary" 
-  element={
-    <ProtectedRoute requiredRole="secretaire">
-      <SecretaryLayout>
-        <SecretaryDashboard />
-      </SecretaryLayout>
-    </ProtectedRoute>
-  } 
-/>
-<Route 
-  path="/secretary/appointments" 
-  element={
-    <ProtectedRoute requiredRole="secretaire">
-      <SecretaryLayout>
-        <AppointmentManagement />
-      </SecretaryLayout>
-    </ProtectedRoute>
-  } 
-/>
-        <Route 
-                path="/secretary/patients" 
-                element={
-                  <ProtectedRoute requiredRole="secretaire">
-                    <SecretaryLayout>
-                      <PatientManagement />
-                    </SecretaryLayout>
-                  </ProtectedRoute>
-                } 
-        />
-        <Route 
-                path="/secretary/invoices" 
-                element={
-                  <ProtectedRoute requiredRole="secretaire">
-                    <SecretaryLayout>
-                      <InvoiceManagement />
-                    </SecretaryLayout>
-                  </ProtectedRoute>
-                } 
-        />
 
-          {/* Route par défaut - redirection vers l'accueil */}
+          {/* Route par défaut */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
@@ -210,7 +130,6 @@ const AppRoutes = () => {
   );
 };
 
-// Composant principal App avec les providers
 const App = () => {
   return (
     <SettingsProvider>

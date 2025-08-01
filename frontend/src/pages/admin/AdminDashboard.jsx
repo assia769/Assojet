@@ -106,7 +106,7 @@ const AdminDashboard = () => {
     <div className="admin-dashboard">
       {/* Header avec gradient */}
       <div className="dashboard-header">
-        <h2>✨ Welcome Admin</h2>
+        <h2>✨ Bienvenue Admin ✨</h2>
       </div>
 
       <div className="dashboard-content">
@@ -245,10 +245,10 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* Debug auth en bas */}
+        {/* Debug auth en bas
         <div className="auth-debug">
           <AuthDebug />
-        </div>
+        </div> */}
       </div>
     </div>
   );

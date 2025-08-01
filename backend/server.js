@@ -1,11 +1,8 @@
-
 // backend/server.js
-
-const maintenanceMiddleware = require('./middleware/maintenanceMiddleware');
-const authMiddleware = require('./middleware/authMiddleware');
 const fs = require('fs');
 const path = require('path');
 
+// Vérification et chargement de l'environnement
 console.log('🔍 Current directory:', process.cwd());
 console.log('🔍 __dirname:', __dirname);
 console.log('🔍 .env file exists:', fs.existsSync('.env'));
@@ -19,6 +16,7 @@ try {
   console.error('❌ Cannot read .env file:', error.message);
 }
 
+// Chargement des variables d'environnement
 const dotenvResult = require('dotenv').config({ path: path.join(__dirname, '.env') });
 console.log('🔍 dotenv result:', dotenvResult);
 console.log('🔍 JWT_SECRET after dotenv:', process.env.JWT_SECRET ? 'LOADED ✅' : 'NOT LOADED ❌');
@@ -31,35 +29,47 @@ if (!process.env.JWT_SECRET) {
   process.exit(1);
 }
 
+// Imports principaux
 const express = require('express');
 const cors = require('cors');
 
+// Configuration de l'application
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Import de la base de données
 const pool = require('./config/database');
 
+// Middlewares globaux
 app.use(cors({
   origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Authorization'] // Ajoutez cette ligne
+
 }));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Servir les fichiers statiques
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-// app.use('/uploads', express.static('uploads'));
 
+// Import des middlewares
+const maintenanceMiddleware = require('./middleware/maintenanceMiddleware');
+
+// Import des routes
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const secretaryRoutes = require('./routes/secretary');
+const patientRoutes = require('./routes/patient');
 
-// Exclude specific routes from maintenance
+// Routes qui ne sont PAS soumises à la maintenance
 app.use('/api/auth', authRoutes);
 app.use('/api/admin/settings', adminRoutes);
 
+// Middleware de maintenance pour les autres routes
 app.use((req, res, next) => {
   const excludedPaths = [
     '/api/auth/login',
@@ -74,10 +84,12 @@ app.use((req, res, next) => {
 
   maintenanceMiddleware(req, res, next);
 });
-app.use('/api/secretary', secretaryRoutes); 
 
-// app.use('/api/patients', patientRoutes);
+// Routes soumises à la maintenance
+app.use('/api/secretary', secretaryRoutes);
+app.use('/api/patient', patientRoutes);
 
+// Routes de test
 app.get('/api/test', (req, res) => {
   res.json({ 
     success: true, 
@@ -114,6 +126,7 @@ app.get('/api/jwt-test', (req, res) => {
   });
 });
 
+// Middleware de gestion d'erreurs
 app.use((err, req, res, next) => {
   if (err.maintenanceMode) {
     return res.status(503).json({
@@ -122,6 +135,7 @@ app.use((err, req, res, next) => {
       maintenanceMode: true
     });
   }
+  
   console.error('Erreur serveur:', err.stack);
   res.status(500).json({
     success: false,
@@ -130,6 +144,7 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Route 404 (doit être en dernier)
 app.use('*', (req, res) => {
   res.status(404).json({
     success: false,
@@ -137,6 +152,18 @@ app.use('*', (req, res) => {
   });
 });
 
+// Gestion des erreurs non capturées
+process.on('uncaughtException', (err) => {
+  console.error('Erreur non capturée:', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Promesse rejetée non gérée:', reason);
+  process.exit(1);
+});
+
+// Démarrage du serveur
 app.listen(PORT, () => {
   console.log(`🚀 Serveur démarré sur le port ${PORT}`);
   console.log(`🌐 URL: http://localhost:${PORT}`);
@@ -149,24 +176,15 @@ app.listen(PORT, () => {
   console.log(`✅ PORT: ${PORT}`);
   console.log(`✅ DB_HOST: ${process.env.DB_HOST}`);
   console.log('===============================\n');
-});
 
-process.on('uncaughtException', (err) => {
-  console.error('Erreur non capturée:', err);
-  process.exit(1);
+  // Affichage des routes (optionnel)
+  try {
+    const listEndpoints = require('express-list-endpoints');
+    console.log("📍 Liste des routes :");
+    console.table(listEndpoints(app));
+  } catch (error) {
+    console.log("📍 express-list-endpoints non installé (optionnel)");
+  }
 });
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Promesse rejetée non gérée:', reason);
-  process.exit(1);
-});
-
-try {
-  const listEndpoints = require('express-list-endpoints');
-  console.log("📍 Liste des routes :");
-  console.table(listEndpoints(app));
-} catch (error) {
-  console.log("📍 express-list-endpoints non installé (optionnel)");
-}
 
 module.exports = app;

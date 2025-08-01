@@ -239,7 +239,7 @@ const AppointmentManagement = () => {
                   Statut
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
+                  Action
                 </th>
               </tr>
             </thead>
@@ -292,13 +292,13 @@ const AppointmentManagement = () => {
                         >
                           <Edit className="h-4 w-4" />
                         </button>
-                        <button
+                        {/* <button
                           onClick={() => handleCancelAppointment(appointment.id_r)}
                           className="text-red-600 hover:text-red-900"
                           title="Annuler"
                         >
                           <Trash2 className="h-4 w-4" />
-                        </button>
+                        </button> */}
                       </div>
                     </td>
                   </tr>

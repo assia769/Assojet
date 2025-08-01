@@ -302,7 +302,7 @@ exports.updatePatient = async (req, res) => {
 };
 
 // Gestion des factures
-// Gestion des factures
+
 exports.getInvoices = async (req, res) => {
   try {
     const { status, patientId } = req.query;
@@ -354,24 +354,42 @@ exports.getInvoices = async (req, res) => {
     
     const invoices = result.rows.map(invoice => {
       let parsedStatus = 'pending';
-      let parsedPaymentMethod = invoice.mode_paiement;
+      let parsedPaymentMethod = null;
 
       try {
-        if (typeof invoice.statut === 'string' && invoice.statut.startsWith('{')) {
-          const statusData = JSON.parse(invoice.statut);
-          parsedStatus = statusData.status || 'pending';
-          if (parsedStatus === 'unpaid') {
-            parsedStatus = 'pending';
+        if (invoice.statut) {
+          let statusData = invoice.statut;
+          
+          // Si c'est une string, on la parse
+          if (typeof statusData === 'string') {
+            statusData = JSON.parse(statusData);
           }
-          parsedPaymentMethod = statusData.modePaiement || invoice.mode_paiement;
-        } else if (typeof invoice.statut === 'object' && invoice.statut !== null) {
-          parsedStatus = invoice.statut.status || 'pending';
-          if (parsedStatus === 'unpaid') {
-            parsedStatus = 'pending';
+          
+          // Fonction récursive pour extraire le statut le plus profond
+          const extractDeepestStatus = (obj) => {
+            if (obj && typeof obj === 'object') {
+              if (obj.status && typeof obj.status === 'object') {
+                // Si status est un objet, on va plus profond
+                return extractDeepestStatus(obj.status);
+              } else if (obj.status) {
+                // Si status est une string, on l'utilise
+                return {
+                  status: obj.status,
+                  modePaiement: obj.modePaiement
+                };
+              }
+            }
+            return obj;
+          };
+          
+          const deepestStatus = extractDeepestStatus(statusData);
+          
+          if (deepestStatus) {
+            parsedStatus = deepestStatus.status || 'pending';
+            parsedPaymentMethod = deepestStatus.modePaiement || statusData.modePaiement || invoice.mode_paiement;
           }
-          parsedPaymentMethod = invoice.statut.modePaiement || invoice.mode_paiement;
-        } else {
-          parsedStatus = invoice.statut || 'pending';
+          
+          // Conversion unpaid -> pending pour le frontend
           if (parsedStatus === 'unpaid') {
             parsedStatus = 'pending';
           }
@@ -379,6 +397,7 @@ exports.getInvoices = async (req, res) => {
       } catch (error) {
         console.warn('Erreur parsing statut pour facture', invoice.id_f, ':', error);
         parsedStatus = 'pending';
+        parsedPaymentMethod = invoice.mode_paiement;
       }
 
       return {
@@ -389,7 +408,10 @@ exports.getInvoices = async (req, res) => {
     });
      
     console.log('✅ Factures récupérées et parsées:', invoices.length);
-    res.json({ data: invoices });
+    console.log('📋 Premier élément parsé:', invoices[0]); // Pour debug
+    
+    // IMPORTANT: Retourner directement le tableau, pas un objet avec data
+    res.json(invoices);
        
   } catch (error) {
     console.error('❌ Erreur getInvoices:', error);
@@ -400,7 +422,6 @@ exports.getInvoices = async (req, res) => {
     });
   }
 };
-
 exports.createInvoice = async (req, res) => {
   try {
     const { consultationId, patientId, prix, modePaiement } = req.body;
@@ -424,6 +445,8 @@ exports.createInvoice = async (req, res) => {
   }
 };
 
+// Dans secretaryController.js - fonction updateInvoiceStatus modifiée
+
 exports.updateInvoiceStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -431,50 +454,83 @@ exports.updateInvoiceStatus = async (req, res) => {
 
     console.log('🔄 Mise à jour facture:', { id, status, modePaiement });
 
-    // Convertir "pending" en "unpaid" pour la DB
-    let dbStatus = status;
-    if (status === 'pending') {
-      dbStatus = 'unpaid';
-    }
+    if (!id) return res.status(400).json({ message: 'ID de facture manquant' });
+    if (!status) return res.status(400).json({ message: 'Statut manquant' });
 
+    const invoiceId = parseInt(id);
+    if (isNaN(invoiceId)) return res.status(400).json({ message: 'ID de facture invalide' });
+
+    let dbStatus = status === 'pending' ? 'unpaid' : status;
+
+    // Créer un objet JSON simple (pas d'imbrication)
     const statutData = {
       status: dbStatus,
       modePaiement: modePaiement || null
     };
 
+    console.log('📊 Données à insérer:', statutData);
+
+    // Utiliser REPLACE pour éviter l'imbrication
     const result = await pool.query(`
       UPDATE facture 
-      SET statut = $1, mode_paiement = $2
+      SET statut = $1::jsonb, mode_paiement = $2
       WHERE id_f = $3
-      RETURNING *
-    `, [JSON.stringify(statutData), modePaiement, id]);
+      RETURNING id_f, id_cons, id_patient, date_f, prix, statut, mode_paiement
+    `, [JSON.stringify(statutData), modePaiement || null, invoiceId]);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Facture non trouvée' });
+      return res.status(404).json({ message: `Facture avec ID ${invoiceId} non trouvée` });
     }
 
-    // Reconvertir pour le frontend
-    let frontendStatus = dbStatus;
-    if (dbStatus === 'unpaid') {
-      frontendStatus = 'pending';
+    const updatedInvoice = result.rows[0];
+
+    // Parser le statut retourné
+    let statutParsed;
+    try {
+      statutParsed = typeof updatedInvoice.statut === 'string'
+        ? JSON.parse(updatedInvoice.statut)
+        : updatedInvoice.statut;
+    } catch (error) {
+      console.error('Erreur parsing statut retourné:', error);
+      statutParsed = { status: 'pending', modePaiement: null };
     }
+
+    let frontendStatus = statutParsed.status === 'unpaid' ? 'pending' : statutParsed.status;
+
+    console.log('✅ Facture mise à jour avec succès:', {
+      id: updatedInvoice.id_f,
+      statut: frontendStatus,
+      mode_paiement: statutParsed.modePaiement
+    });
 
     res.json({
+      success: true,
       data: {
-        ...result.rows[0],
+        ...updatedInvoice,
         statut: frontendStatus,
-        mode_paiement: modePaiement
+        mode_paiement: statutParsed.modePaiement || null
       }
     });
 
   } catch (error) {
-    console.error('❌ Erreur updateInvoiceStatus:', error);
+    console.error('❌ Erreur updateInvoiceStatus complète:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      detail: error.detail
+    });
+
     res.status(500).json({
       message: 'Erreur lors de la mise à jour de la facture',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Erreur interne'
+      error: process.env.NODE_ENV === 'development' ? {
+        message: error.message,
+        code: error.code,
+        detail: error.detail
+      } : 'Erreur interne'
     });
   }
 };
+
 // Calendrier
 exports.getCalendarView = async (req, res) => {
   try {

@@ -48,7 +48,7 @@ export const secretaryService = {
   // Gestion des factures
   async getInvoices(params = {}) {
     const response = await api.get('/secretary/invoices', { params });
-    return response.data.data;
+    return response.data;
   },
 
   async createInvoice(invoiceData) {

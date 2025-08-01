@@ -57,7 +57,7 @@ const Login = () => {
         navigate('/secretary');
       }else {
         console.log('🔄 Redirecting to patient dashboard');
-        navigate('/patient/dashboard');
+        navigate('/patient');
       }
       
     } catch (err) {

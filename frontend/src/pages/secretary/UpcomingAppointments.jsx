@@ -98,9 +98,7 @@ const UpcomingAppointments = () => {
         <h3 className="text-lg font-semibold text-gray-900">
           Prochains Rendez-vous
         </h3>
-        <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-          Voir tout
-        </button>
+        
       </div>
 
       {appointments.length === 0 ? (

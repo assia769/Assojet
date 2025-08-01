@@ -49,26 +49,43 @@ const InvoiceManagement = () => {
     }
   };
 
-  const fetchInvoices = async () => {
-    try {
-      const params = {};
-      if (statusFilter !== 'all') params.status = statusFilter;
-      if (patientFilter) params.patientId = patientFilter;
+ const fetchInvoices = async () => {
+  try {
+    const params = {};
+    if (statusFilter !== 'all') params.status = statusFilter;
+    if (patientFilter) params.patientId = patientFilter;
 
-      const response = await secretaryService.getInvoices(params);
-      const rawInvoices = response || [];
-
-      console.log("🔎 Response brute invoices:", response);
-      // console.log("📦 Invoices data:", response.data);
-      // console.log("📦 Invoices data.data:", response.data?.data);
-
-      setInvoices(rawInvoices);
-    } catch (error) {
-      console.error('Erreur lors du chargement des factures:', error);
-      setInvoices([]);
-      throw error;
+    console.log("🔍 Appel secretaryService.getInvoices avec params:", params);
+    const response = await secretaryService.getInvoices(params);
+    
+    console.log("🔎 Response brute invoices:", response);
+    console.log("🔎 Type de response:", typeof response);
+    console.log("🔎 Response est array?", Array.isArray(response));
+    
+    // Gérer les différents formats de réponse possibles
+    let invoicesData = [];
+    
+    if (Array.isArray(response)) {
+      invoicesData = response;
+    } else if (response && response.data && Array.isArray(response.data)) {
+      invoicesData = response.data;
+    } else if (response && Array.isArray(response.invoices)) {
+      invoicesData = response.invoices;
+    } else {
+      console.warn("Format de réponse inattendu:", response);
+      invoicesData = [];
     }
-  };
+    
+    console.log("📦 Invoices parsed:", invoicesData);
+    console.log("📦 Nombre de factures:", invoicesData.length);
+    
+    setInvoices(invoicesData);
+  } catch (error) {
+    console.error('Erreur lors du chargement des factures:', error);
+    setInvoices([]);
+    throw error;
+  }
+};
 
   const fetchPatients = async () => {
     try {
@@ -117,17 +134,17 @@ const InvoiceManagement = () => {
       if (newPatientFilter) params.patientId = newPatientFilter;
 
       const response = await secretaryService.getInvoices(params);
-      const rawInvoices = response || [];
-
-      setInvoices(rawInvoices);
+      
+      // Le backend retourne directement un tableau
+      const invoicesData = Array.isArray(response) ? response : [];
+      
+      setInvoices(invoicesData);
     } catch (error) {
       console.error('Erreur lors de l\'application des filtres:', error);
       setError('Erreur lors de l\'application des filtres');
       setInvoices([]);
     }
   };
-
-
 
   const getStatusBadge = (status) => {
     const statusConfig = {

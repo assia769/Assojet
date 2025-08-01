@@ -46,7 +46,6 @@
 
 /* Header avec gradient */
 .dashboard-header {
-  background: var(--bg-gradient);
   padding: 2rem 2rem 3rem;
   margin-bottom: -1rem;
   position: relative;
@@ -55,7 +54,6 @@
 
 .dashboard-header::before {
   content: '';
-  position: absolute;
   top: 0;
   left: 0;
   right: 0;
@@ -65,13 +63,14 @@
 }
 
 .dashboard-header h2 {
-  color: white;
-  font-size: 2.5rem;
+  color: red;
+  font-size: 3rem;
   font-weight: 700;
   margin: 0;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   position: relative;
   z-index: 1;
+  text-align: center;
 }
 
 /* Container de contenu */
