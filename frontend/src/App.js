@@ -35,11 +35,24 @@ import PatientDocuments from './pages/patient/PatientDocuments';
 import PatientMessaging from './pages/patient/PatientMessaging';
 import PatientNotifications from './pages/patient/PatientNotifications';
 
+// Pages Médecin
+import DoctorDashboard from './pages/doctor/DoctorDashboard';
+import PatientsList from './pages/doctor/PatientsList';
+import PatientDetails from './pages/doctor/PatientDetails';
+import ConsultationForm from './pages/doctor/ConsultationForm';
+import MedicalRecords from './pages/doctor/MedicalRecords';
+import DoctorCalendar from './pages/doctor/DoctorCalendar';
+import PrescriptionManagement from './pages/doctor/PrescriptionManagement';
+import DoctorMessaging from './pages/doctor/DoctorMessaging';
+import DoctorStatistics from './pages/doctor/DoctorStatistics';
+
 // Layouts
 import PublicLayout from './components/layout/PublicLayout';
 import AdminLayout from './components/layout/AdminLayout';
 import SecretaryLayout from './components/layout/SecretaryLayout';
 import PatientLayout from './components/layout/PatientLayout';
+import DoctorLayout from './components/layout/DoctorLayout';
+
 
 const ProtectedRoute = ({ children, requiredRole }) => {
   const { user, loading } = useAuth();
@@ -56,17 +69,19 @@ const ProtectedRoute = ({ children, requiredRole }) => {
     return <Navigate to="/login" replace />;
   }
 
+  
   if (requiredRole && user.role !== requiredRole) {
     if (user.role === 'admin') {
       return <Navigate to="/admin" replace />;
     } else if (user.role === 'secretaire') {
       return <Navigate to="/secretary" replace />;
+    } else if (user.role === 'medecin') {
+      return <Navigate to="/doctor" replace />;
     } else if (user.role === 'patient') {
       return <Navigate to="/patient" replace />;
     }
     return <Navigate to="/" replace />;
   }
-
   return children;
 };
 
@@ -92,6 +107,20 @@ const AppRoutes = () => {
           <Route path="/secretary/appointments" element={<ProtectedRoute requiredRole="secretaire"><SecretaryLayout><AppointmentManagement /></SecretaryLayout></ProtectedRoute>} />
           <Route path="/secretary/patients" element={<ProtectedRoute requiredRole="secretaire"><SecretaryLayout><PatientManagement /></SecretaryLayout></ProtectedRoute>} />
           <Route path="/secretary/invoices" element={<ProtectedRoute requiredRole="secretaire"><SecretaryLayout><InvoiceManagement /></SecretaryLayout></ProtectedRoute>} />
+
+
+        {/* Routes Médecin protégées */}
+          <Route path="/doctor" element={<ProtectedRoute requiredRole="medecin"><DoctorLayout><DoctorDashboard /></DoctorLayout></ProtectedRoute>} />
+          <Route path="/doctor/patients" element={<ProtectedRoute requiredRole="medecin"><DoctorLayout><PatientsList /></DoctorLayout></ProtectedRoute>} />
+          <Route path="/doctor/patients/:patientId" element={<ProtectedRoute requiredRole="medecin"><DoctorLayout><PatientDetails /></DoctorLayout></ProtectedRoute>} />
+          <Route path="/doctor/consultation" element={<ProtectedRoute requiredRole="medecin"><DoctorLayout><ConsultationForm /></DoctorLayout></ProtectedRoute>} />
+          <Route path="/doctor/consultation/:appointmentId" element={<ProtectedRoute requiredRole="medecin"><DoctorLayout><ConsultationForm /></DoctorLayout></ProtectedRoute>} />
+          <Route path="/doctor/medical-records" element={<ProtectedRoute requiredRole="medecin"><DoctorLayout><MedicalRecords /></DoctorLayout></ProtectedRoute>} />
+          <Route path="/doctor/medical-records/:patientId" element={<ProtectedRoute requiredRole="medecin"><DoctorLayout><MedicalRecords /></DoctorLayout></ProtectedRoute>} />
+          <Route path="/doctor/calendar" element={<ProtectedRoute requiredRole="medecin"><DoctorLayout><DoctorCalendar /></DoctorLayout></ProtectedRoute>} />
+          <Route path="/doctor/prescriptions" element={<ProtectedRoute requiredRole="medecin"><DoctorLayout><PrescriptionManagement /></DoctorLayout></ProtectedRoute>} />
+          <Route path="/doctor/messaging" element={<ProtectedRoute requiredRole="medecin"><DoctorLayout><DoctorMessaging /></DoctorLayout></ProtectedRoute>} />
+          <Route path="/doctor/statistics" element={<ProtectedRoute requiredRole="medecin"><DoctorLayout><DoctorStatistics /></DoctorLayout></ProtectedRoute>} />
 
           {/* Routes Patient protégées */}
           <Route path="/patient" element={<ProtectedRoute requiredRole="patient"><PatientLayout><PatientDashboard /></PatientLayout></ProtectedRoute>} />

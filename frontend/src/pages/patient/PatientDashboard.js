@@ -183,15 +183,7 @@ const PatientDashboard = () => {
 
   return (
     <div className="space-y-6">
-      {/* En-tête */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">
-          Bonjour, {user?.prenom || 'Patient'} {user?.nom || ''}
-        </h1>
-        <p className="text-gray-600">
-          Bienvenue dans votre espace patient
-        </p>
-      </div>
+      
 
       {/* ✅ Affichage d'avertissement si erreur non critique */}
       {error && (

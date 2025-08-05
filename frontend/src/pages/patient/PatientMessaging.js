@@ -71,7 +71,7 @@ const PatientMessaging = () => {
       
       setNewMessage({ recipient_id: '', subject: '', content: '' });
       setShowNewMessage(false);
-      await fetchMessages(); // Recharger les messages
+      await fetchMessages(); 
     } catch (error) {
       console.error('Erreur envoi message:', error);
       setError(error.message || 'Erreur lors de l\'envoi du message');

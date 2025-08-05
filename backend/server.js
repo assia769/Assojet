@@ -63,6 +63,8 @@ const maintenanceMiddleware = require('./middleware/maintenanceMiddleware');
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const secretaryRoutes = require('./routes/secretary');
+const doctorRoutes = require('./routes/doctor');
+
 const patientRoutes = require('./routes/patient');
 
 // Routes qui ne sont PAS soumises à la maintenance
@@ -87,6 +89,7 @@ app.use((req, res, next) => {
 
 // Routes soumises à la maintenance
 app.use('/api/secretary', secretaryRoutes);
+app.use('/api/doctor', doctorRoutes); 
 app.use('/api/patient', patientRoutes);
 
 // Routes de test

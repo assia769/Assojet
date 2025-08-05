@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { adminService } from '../../services/adminService';
 import '../../styles/components/admin.css';
+import jsPDF from 'jspdf';
+
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
@@ -178,50 +180,187 @@ const UserManagement = () => {
     }
   };
 
-  const handleGenerateReport = async (userId) => {
-    try {
-      console.log('🔄 Génération du rapport pour l\'utilisateur:', userId);
-      const response = await adminService.generateUserReport(userId);
+const handleGenerateReport = async (userId) => {
+  try {
+    console.log('🔄 Génération du rapport PDF pour l\'utilisateur:', userId);
+    const response = await adminService.generateUserReport(userId);
+    
+    if (response.success) {
+      // Créer un nouveau document PDF
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.width;
+      const pageHeight = doc.internal.pageSize.height;
+      const margin = 20;
+      let yPosition = 30;
       
-      if (response.success) {
-        const reportContent = `
-RAPPORT UTILISATEUR
-==================
-Date de génération: ${new Date().toLocaleString('fr-FR')}
+      // Fonction helper pour ajouter du texte avec retour à la ligne automatique
+      const addWrappedText = (text, x, y, maxWidth, fontSize = 12) => {
+        doc.setFontSize(fontSize);
+        const lines = doc.splitTextToSize(text, maxWidth);
+        doc.text(lines, x, y);
+        return y + (lines.length * fontSize * 0.5);
+      };
 
-INFORMATIONS PERSONNELLES
-------------------------
-Nom: ${response.data.utilisateur.nom}
-Prénom: ${response.data.utilisateur.prenom}
-Email: ${response.data.utilisateur.email}
-Rôle: ${response.data.utilisateur.role}
-Téléphone: ${response.data.utilisateur.telephone || 'Non renseigné'}
-Adresse: ${response.data.utilisateur.adresse || 'Non renseignée'}
-Date de création: ${response.data.utilisateur.dateCreation}
-Dernière connexion: ${response.data.utilisateur.derniereConnexion || 'Jamais'}
+      // Fonction helper pour ajouter une nouvelle page si nécessaire
+      const checkPageSpace = (requiredSpace) => {
+        if (yPosition + requiredSpace > pageHeight - margin) {
+          doc.addPage();
+          yPosition = 30;
+        }
+      };
 
-STATISTIQUES
------------
-${JSON.stringify(response.data.statistiques, null, 2)}
-        `;
+      // En-tête du document
+      doc.setFillColor(41, 128, 185); // Bleu professionnel
+      doc.rect(0, 0, pageWidth, 25, 'F');
+      
+      doc.setTextColor(255, 255, 255); // Texte blanc
+      doc.setFontSize(20);
+      doc.setFont(undefined, 'bold');
+      doc.text('RAPPORT UTILISATEUR', pageWidth / 2, 16, { align: 'center' });
+      
+      // Réinitialiser la couleur du texte
+      doc.setTextColor(0, 0, 0);
+      yPosition = 40;
+
+      // Date de génération
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'normal');
+      doc.text(`Généré le : ${new Date().toLocaleString('fr-FR')}`, pageWidth - margin, yPosition, { align: 'right' });
+      yPosition += 20;
+
+      // Section : Informations personnelles
+      checkPageSpace(60);
+      doc.setFillColor(240, 240, 240);
+      doc.rect(margin, yPosition - 5, pageWidth - 2 * margin, 15, 'F');
+      
+      doc.setFontSize(16);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(41, 128, 185);
+      doc.text('INFORMATIONS PERSONNELLES', margin + 5, yPosition + 5);
+      
+      doc.setTextColor(0, 0, 0);
+      yPosition += 25;
+
+      // Informations utilisateur avec un meilleur formatage
+      const userInfo = [
+        { label: 'Nom complet', value: `${response.data.utilisateur.prenom} ${response.data.utilisateur.nom}` },
+        { label: 'Adresse email', value: response.data.utilisateur.email },
+        { label: 'Rôle dans le système', value: response.data.utilisateur.role.toUpperCase() },
+        { label: 'Numéro de téléphone', value: response.data.utilisateur.telephone || 'Non renseigné' },
+        { label: 'Adresse postale', value: response.data.utilisateur.adresse || 'Non renseignée' },
+        { label: 'Date de création du compte', value: new Date(response.data.utilisateur.dateCreation).toLocaleDateString('fr-FR') },
+        { label: 'Dernière connexion', value: response.data.utilisateur.derniereConnexion ? 
+          new Date(response.data.utilisateur.derniereConnexion).toLocaleDateString('fr-FR') : 'Jamais connecté' }
+      ];
+
+      userInfo.forEach(info => {
+        checkPageSpace(15);
+        doc.setFont(undefined, 'bold');
+        doc.setFontSize(11);
+        doc.text(`${info.label} :`, margin + 10, yPosition);
         
-        const blob = new Blob([reportContent], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `rapport-${response.data.utilisateur.nom}-${response.data.utilisateur.prenom}-${userId}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(10);
+        yPosition = addWrappedText(info.value, margin + 60, yPosition, pageWidth - margin - 70, 10);
+        yPosition += 8;
+      });
+
+      yPosition += 10;
+
+      // Section : Statistiques (si disponibles)
+      if (response.data.statistiques) {
+        checkPageSpace(40);
+        doc.setFillColor(240, 240, 240);
+        doc.rect(margin, yPosition - 5, pageWidth - 2 * margin, 15, 'F');
         
-        console.log('✅ Rapport téléchargé avec succès');
+        doc.setFontSize(16);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(41, 128, 185);
+        doc.text('STATISTIQUES D\'UTILISATION', margin + 5, yPosition + 5);
+        
+        doc.setTextColor(0, 0, 0);
+        yPosition += 25;
+
+        // Afficher les statistiques de manière organisée
+        Object.entries(response.data.statistiques).forEach(([key, value]) => {
+          checkPageSpace(12);
+          doc.setFont(undefined, 'bold');
+          doc.setFontSize(11);
+          doc.text(`${key.charAt(0).toUpperCase() + key.slice(1)} :`, margin + 10, yPosition);
+          
+          doc.setFont(undefined, 'normal');
+          doc.setFontSize(10);
+          doc.text(String(value), margin + 80, yPosition);
+          yPosition += 12;
+        });
       }
-    } catch (error) {
-      console.error('❌ Erreur lors de la génération du rapport:', error);
-      alert('Erreur lors de la génération du rapport. Vérifiez la console.');
+
+      yPosition += 20;
+
+      // Section : Résumé du profil
+      checkPageSpace(50);
+      doc.setFillColor(240, 240, 240);
+      doc.rect(margin, yPosition - 5, pageWidth - 2 * margin, 15, 'F');
+      
+      doc.setFontSize(16);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(41, 128, 185);
+      doc.text('RÉSUMÉ DU PROFIL', margin + 5, yPosition + 5);
+      
+      doc.setTextColor(0, 0, 0);
+      yPosition += 25;
+
+      // Générer un résumé personnalisé selon le rôle
+      let resumeText = '';
+      switch (response.data.utilisateur.role) {
+        case 'patient':
+          resumeText = `Ce patient est enregistré dans le système depuis le ${new Date(response.data.utilisateur.dateCreation).toLocaleDateString('fr-FR')}. Son profil est ${response.data.utilisateur.telephone ? 'complet avec' : 'incomplet, manquant'} les informations de contact téléphonique.`;
+          break;
+        case 'medecin':
+          resumeText = `Ce médecin fait partie de l'équipe médicale depuis le ${new Date(response.data.utilisateur.dateCreation).toLocaleDateString('fr-FR')}. Son profil professionnel est configuré dans le système.`;
+          break;
+        case 'secretaire':
+          resumeText = `Cette secrétaire assure les fonctions administratives depuis le ${new Date(response.data.utilisateur.dateCreation).toLocaleDateString('fr-FR')}. Elle dispose des accès nécessaires à la gestion des rendez-vous.`;
+          break;
+        case 'admin':
+          resumeText = `Cet administrateur possède tous les privilèges système depuis le ${new Date(response.data.utilisateur.dateCreation).toLocaleDateString('fr-FR')}. Il peut gérer l'ensemble des utilisateurs et paramètres.`;
+          break;
+        default:
+          resumeText = `Cet utilisateur est enregistré dans le système avec un rôle ${response.data.utilisateur.role}.`;
+      }
+
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(11);
+      yPosition = addWrappedText(resumeText, margin + 10, yPosition, pageWidth - 2 * margin - 20, 11);
+
+      // Pied de page
+      const addFooter = () => {
+        doc.setFontSize(8);
+        doc.setTextColor(128, 128, 128);
+        doc.text('Ce rapport a été généré automatiquement par le système de gestion.', pageWidth / 2, pageHeight - 10, { align: 'center' });
+        doc.text(`Page ${doc.internal.getNumberOfPages()}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
+      };
+
+      // Ajouter le pied de page à toutes les pages
+      const totalPages = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        addFooter();
+      }
+
+      // Télécharger le PDF
+      const fileName = `rapport-${response.data.utilisateur.nom}-${response.data.utilisateur.prenom}-${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(fileName);
+      
+      console.log('✅ Rapport PDF généré avec succès');
+      alert('Rapport PDF généré et téléchargé avec succès !');
+      
     }
-  };
+  } catch (error) {
+    console.error('❌ Erreur lors de la génération du rapport:', error);
+    alert('Erreur lors de la génération du rapport PDF. Vérifiez la console.');
+  }
+};
 
   const filteredUsers = users.filter(user => 
     (user.nom || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -355,28 +494,28 @@ ${JSON.stringify(response.data.statistiques, null, 2)}
                         className="action-btn view"
                         title="Voir le profil"
                       >
-                        👁️ Profil
+                        👁️
                       </button>
                       <button
                         onClick={() => handleEditUser(user)}
                         className="action-btn edit"
                         title="Modifier l'utilisateur"
                       >
-                        ✏️ Modifier
+                        ✏️ 
                       </button>
                       <button
                         onClick={() => handleGenerateReport(user.id_u || user.id)}
                         className="action-btn report"
                         title="Générer un rapport"
                       >
-                        📄 Rapport
+                        📄
                       </button>
                       <button
                         onClick={() => handleDeleteUser(user.id_u || user.id)}
                         className="action-btn delete"
                         title="Supprimer l'utilisateur"
                       >
-                        🗑️ Supprimer
+                        🗑️ 
                       </button>
                     </div>
                   </td>
