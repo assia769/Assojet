@@ -1,5 +1,3 @@
-
-// // frontend/src/pages/Login.jsx
 // import React, { useState } from 'react';
 // import { useAuth } from '../context/AuthContext';
 // import { useNavigate } from 'react-router-dom';
@@ -23,9 +21,13 @@
 //       setLoading(true);
 //       setError('');
       
+//       console.log('🔐 Verify2FA: Verifying with tempToken:', tempToken ? 'exists' : 'missing');
+//       console.log('🔐 Verify2FA: Code:', code);
+      
 //       const result = await verify2FA(tempToken, code);
 //       onSuccess(result);
 //     } catch (error) {
+//       console.error('❌ Verify2FA error:', error);
 //       setError(error.message || 'Code invalide');
 //     } finally {
 //       setLoading(false);
@@ -141,18 +143,40 @@
 //   const { generate2FA, verify2FA } = useAuth();
 
 //   React.useEffect(() => {
-//     generateQRCode();
-//   }, []);
+//     if (step === 'generate') {
+//       generateQRCode();
+//     }
+//   }, [step]);
 
 //   const generateQRCode = async () => {
 //     try {
 //       setLoading(true);
+//       setError('');
+//       console.log('🔧 Setup2FA: Generating QR Code for email:', email);
+      
 //       const result = await generate2FA(email);
+//       console.log('🔧 Setup2FA: QR Code result:', result);
+      
+//       if (!result.qrCode) {
+//         throw new Error('QR Code non reçu du serveur');
+//       }
+      
+//       if (!result.tempToken) {
+//         console.warn('⚠️ Setup2FA: No tempToken received, but continuing...');
+//       }
+      
 //       setQrCode(result.qrCode);
-//       setSecret(result.secret);
-//       setTempToken(result.tempToken);
+//       setSecret(result.secret || '');
+//       setTempToken(result.tempToken || '');
 //       setStep('verify');
+      
+//       console.log('✅ Setup2FA: QR Code generated successfully');
+//       console.log('- QR Code:', result.qrCode ? 'exists' : 'missing');
+//       console.log('- TempToken:', result.tempToken ? 'exists' : 'missing');
+//       console.log('- Secret:', result.secret ? 'exists' : 'missing');
+      
 //     } catch (error) {
+//       console.error('❌ Setup2FA: QR Code generation failed:', error);
 //       setError(error.message || 'Erreur lors de la génération du QR Code');
 //     } finally {
 //       setLoading(false);
@@ -170,13 +194,31 @@
 //       setLoading(true);
 //       setError('');
       
-//       const result = await verify2FA(tempToken, code, true); // isSetup = true
+//       console.log('🔧 Setup2FA: Verifying setup with:');
+//       console.log('- tempToken:', tempToken ? 'exists' : 'missing');
+//       console.log('- code:', code);
+//       console.log('- email:', email);
+//       console.log('- isSetup: true');
+      
+//       // Essayer avec le tempToken s'il existe, sinon utiliser l'email
+//       const result = await verify2FA(tempToken || email, code, true);
+//       console.log('✅ Setup2FA: Verification successful:', result);
 //       onSuccess(result);
 //     } catch (error) {
-//       setError(error.message || 'Code invalide');
+//       console.error('❌ Setup2FA: Verification failed:', error);
+//       setError(error.message || 'Code invalide. Vérifiez que l\'heure de votre appareil est correcte.');
 //     } finally {
 //       setLoading(false);
 //     }
+//   };
+
+//   const handleRetryQRCode = () => {
+//     setStep('generate');
+//     setError('');
+//     setCode('');
+//     setQrCode('');
+//     setSecret('');
+//     setTempToken('');
 //   };
 
 //   return (
@@ -223,6 +265,21 @@
 //         {error && (
 //           <div className="error-message">
 //             <strong>Erreur:</strong> {error}
+//             <button 
+//               onClick={handleRetryQRCode}
+//               style={{ 
+//                 marginLeft: '10px', 
+//                 padding: '5px 10px', 
+//                 backgroundColor: '#10b981', 
+//                 color: 'white', 
+//                 border: 'none', 
+//                 borderRadius: '4px',
+//                 cursor: 'pointer',
+//                 fontSize: '12px'
+//               }}
+//             >
+//               Réessayer
+//             </button>
 //           </div>
 //         )}
 
@@ -241,6 +298,19 @@
 //               <p style={{ marginTop: '1rem', fontSize: '0.9rem', color: '#666' }}>
 //                 Utilisez Google Authenticator, Authy ou une autre app compatible
 //               </p>
+//               {secret && (
+//                 <div style={{ marginTop: '1rem', padding: '0.5rem', backgroundColor: '#f3f4f6', borderRadius: '4px' }}>
+//                   <small style={{ color: '#6b7280' }}>
+//                     Clé manuelle : <code style={{ backgroundColor: '#e5e7eb', padding: '2px 4px', borderRadius: '2px' }}>{secret}</code>
+//                   </small>
+//                 </div>
+//               )}
+              
+//               {/* Debug info - À supprimer en production */}
+//               <div style={{ marginTop: '1rem', padding: '0.5rem', backgroundColor: '#fef3c7', borderRadius: '4px', fontSize: '12px' }}>
+//                 <strong>Debug:</strong> TempToken: {tempToken ? '✅ Présent' : '❌ Manquant'} | 
+//                 Email: {email ? '✅ Présent' : '❌ Manquant'}
+//               </div>
 //             </div>
 
 //             <form className="login-form" onSubmit={handleVerifySetup}>
@@ -275,7 +345,10 @@
 //                   type="submit"
 //                   disabled={loading || code.length !== 6}
 //                   className="login-button"
-//                   style={{ flex: 1 }}
+//                   style={{ 
+//                     flex: 1,
+//                     opacity: (loading || code.length !== 6) ? 0.5 : 1
+//                   }}
 //                 >
 //                   <div className="button-content">
 //                     {loading && <div className="loading-spinner"></div>}
@@ -284,6 +357,12 @@
 //                 </button>
 //               </div>
 //             </form>
+            
+//             <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+//               <small style={{ color: '#6b7280' }}>
+//                 💡 Astuce: Assurez-vous que l'heure de votre appareil est correcte
+//               </small>
+//             </div>
 //           </div>
 //         ) : null}
 

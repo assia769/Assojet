@@ -135,7 +135,7 @@ const PatientDetails = () => {
           <div className="flex items-center">
             <img
               className="h-20 w-20 rounded-full"
-              src={patient.photo || '/api/placeholder/80/80'}
+              src={DoctorService.getProfilePhotoUrl(patient.photo) || '/api/placeholder/80/80'}
               alt=""
             />
             <div className="ml-6">

@@ -409,5 +409,171 @@ router.get('/statistics/patients', async (req, res) => {
     res.status(500).json({ error: 'Erreur patients stats' });
   }
 });
+// Upload de fichier médical pour un patient
+router.post('/patients/:patientId/files', upload.single('file'), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    const { patientId } = req.params;
+    const { description, type } = req.body;
+    
+    if (!req.file) {
+      return res.status(400).json({ message: 'Aucun fichier fourni' });
+    }
+    
+    // Vérifier que le patient existe et appartient au médecin
+    const patientCheck = await client.query(`
+      SELECT p.id_p FROM Patient p
+      JOIN Consultation c ON p.id_p = c.id_patient
+      JOIN Medecin m ON c.id_medecin = m.id_m
+      WHERE p.id_p = $1 AND m.id_u = $2
+      LIMIT 1
+    `, [patientId, req.user.id]);
+    
+    if (patientCheck.rows.length === 0) {
+      return res.status(404).json({ message: 'Patient non trouvé' });
+    }
+    
+    // Créer ou récupérer le dossier médical
+    let dossier = await client.query(`
+      SELECT id_d FROM DossierMedical WHERE id_patient = $1
+    `, [patientId]);
+    
+    let dossierId;
+    if (dossier.rows.length === 0) {
+      const newDossier = await client.query(`
+        INSERT INTO DossierMedical (id_patient, date_creation)
+        VALUES ($1, NOW())
+        RETURNING id_d
+      `, [patientId]);
+      dossierId = newDossier.rows[0].id_d;
+    } else {
+      dossierId = dossier.rows[0].id_d;
+    }
+    
+    // Enregistrer le fichier
+    const fichier = await client.query(`
+      INSERT INTO FichierMedical (id_d, nom_fichier, type_fichier, chemin, description, date_upload)
+      VALUES ($1, $2, $3, $4, $5, NOW())
+      RETURNING *
+    `, [dossierId, req.file.originalname, type || req.file.mimetype, req.file.path, description]);
+    
+    await client.query('COMMIT');
+    
+    res.status(201).json({
+      message: 'Fichier uploadé avec succès',
+      file: fichier.rows[0]
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Erreur upload fichier:', error);
+    res.status(500).json({ message: 'Erreur serveur' });
+  } finally {
+    client.release();
+  }
+});
 
+// Télécharger un fichier médical
+router.get('/files/:fileId/download', async (req, res) => {
+  try {
+    const { fileId } = req.params;
+    
+    // Vérifier que le fichier appartient à un patient du médecin
+    const file = await pool.query(`
+      SELECT fm.*, dm.id_patient
+      FROM FichierMedical fm
+      JOIN DossierMedical dm ON fm.id_d = dm.id_d
+      JOIN Patient p ON dm.id_patient = p.id_p
+      JOIN Consultation c ON p.id_p = c.id_patient
+      JOIN Medecin m ON c.id_medecin = m.id_m
+      WHERE fm.id_fichier = $1 AND m.id_u = $2
+      LIMIT 1
+    `, [fileId, req.user.id]);
+    
+    if (file.rows.length === 0) {
+      return res.status(404).json({ message: 'Fichier non trouvé' });
+    }
+    
+    const fichier = file.rows[0];
+    
+    if (!fs.existsSync(fichier.chemin)) {
+      return res.status(404).json({ message: 'Fichier physique non trouvé' });
+    }
+    
+    res.download(fichier.chemin, fichier.nom_fichier);
+  } catch (error) {
+    console.error('Erreur téléchargement fichier:', error);
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
+
+// Supprimer un fichier médical
+router.delete('/files/:fileId', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    const { fileId } = req.params;
+    
+    // Récupérer le fichier et vérifier les droits
+    const file = await client.query(`
+      SELECT fm.*
+      FROM FichierMedical fm
+      JOIN DossierMedical dm ON fm.id_d = dm.id_d
+      JOIN Patient p ON dm.id_patient = p.id_p
+      JOIN Consultation c ON p.id_p = c.id_patient
+      JOIN Medecin m ON c.id_medecin = m.id_m
+      WHERE fm.id_fichier = $1 AND m.id_u = $2
+      LIMIT 1
+    `, [fileId, req.user.id]);
+    
+    if (file.rows.length === 0) {
+      return res.status(404).json({ message: 'Fichier non trouvé' });
+    }
+    
+    const fichier = file.rows[0];
+    
+    // Supprimer de la base de données
+    await client.query('DELETE FROM FichierMedical WHERE id_fichier = $1', [fileId]);
+    
+    // Supprimer le fichier physique
+    if (fs.existsSync(fichier.chemin)) {
+      fs.unlinkSync(fichier.chemin);
+    }
+    
+    await client.query('COMMIT');
+    
+    res.json({ message: 'Fichier supprimé avec succès' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Erreur suppression fichier:', error);
+    res.status(500).json({ message: 'Erreur serveur' });
+  } finally {
+    client.release();
+  }
+});
+
+// Lister les fichiers d'un patient
+router.get('/patients/:patientId/files', async (req, res) => {
+  try {
+    const { patientId } = req.params;
+    
+    const files = await pool.query(`
+      SELECT fm.*
+      FROM FichierMedical fm
+      JOIN DossierMedical dm ON fm.id_d = dm.id_d
+      JOIN Patient p ON dm.id_patient = p.id_p
+      JOIN Consultation c ON p.id_p = c.id_patient
+      JOIN Medecin m ON c.id_medecin = m.id_m
+      WHERE dm.id_patient = $1 AND m.id_u = $2
+      ORDER BY fm.date_upload DESC
+    `, [patientId, req.user.id]);
+    
+    res.json(files.rows);
+  } catch (error) {
+    console.error('Erreur liste fichiers:', error);
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
 module.exports = router;
