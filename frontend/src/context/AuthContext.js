@@ -1,192 +1,3 @@
-// // frontend/src/context/AuthContext.js
-// import React, { createContext, useContext, useState, useEffect } from 'react';
-// import { authService } from '../services/authService';
-
-// // Créer et EXPORTER le contexte
-// export const AuthContext = createContext();
-
-// export const AuthProvider = ({ children }) => {
-//   const [user, setUser] = useState(null);
-//   const [loading, setLoading] = useState(true);
-//   const [token, setToken] = useState(null);
-
-//   // Charger les données d'authentification au démarrage
-//   useEffect(() => {
-//     const initAuth = () => {
-//       try {
-//         const storedToken = localStorage.getItem('authToken');
-//         const storedUser = localStorage.getItem('user');
-        
-//         console.log('🔄 Initializing auth...');
-//         console.log('📝 Stored token:', storedToken ? 'exists' : 'none');
-//         console.log('👤 Stored user:', storedUser ? 'exists' : 'none');
-        
-//         if (storedToken && storedUser) {
-//           const userData = JSON.parse(storedUser);
-//           setToken(storedToken);
-//           setUser(userData);
-//           console.log('✅ Auth restored from localStorage');
-//         } else {
-//           console.log('⚠️ No stored auth data found');
-//         }
-//       } catch (error) {
-//         console.error('❌ Error loading auth data:', error);
-//         // Nettoyer les données corrompues
-//         localStorage.removeItem('authToken');
-//         localStorage.removeItem('user');
-//       } finally {
-//         setLoading(false);
-//       }
-//     };
-
-//     initAuth();
-//   }, []);
-
-//   const login = async (email, password) => {
-//     try {
-//       setLoading(true);
-//       console.log('🔐 Attempting login...');
-      
-//       const response = await authService.login(email, password);
-//       console.log('🧾 Login response:', response);
-      
-//       if (response.user && response.token) {
-//         // Stocker le token ET les données utilisateur
-//         localStorage.setItem('authToken', response.token);
-//         localStorage.setItem('user', JSON.stringify(response.user));
-        
-//         // Mettre à jour le state
-//         setToken(response.token);
-//         setUser(response.user);
-        
-//         console.log('✅ Login successful, token stored');
-//         console.log('🔑 Token preview:', response.token.substring(0, 20) + '...');
-        
-//         return { success: true, user: response.user };
-//       } else {
-//         throw new Error('Réponse de connexion invalide');
-//       }
-//     } catch (error) {
-//       console.error('❌ Login error:', error);
-      
-//       // Nettoyer en cas d'erreur
-//       localStorage.removeItem('authToken');
-//       localStorage.removeItem('user');
-//       setToken(null);
-//       setUser(null);
-      
-//       throw error;
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-  
-
-
-// // Remplacer la méthode register dans votre AuthContext.js
-
-// const register = async (userData) => {
-//   try {
-//     setLoading(true);
-//     console.log('📝 Attempting registration...');
-    
-//     // Nettoyer le token existant avant l'inscription
-//     const existingToken = localStorage.getItem('authToken');
-//     if (existingToken) {
-//       console.log('🧹 Clearing existing token before registration');
-//       localStorage.removeItem('authToken');
-//       localStorage.removeItem('user');
-//       setToken(null);
-//       setUser(null);
-//     }
-    
-//     const response = await authService.register(userData);
-//     console.log('🧾 Register response:', response);
-    
-//     // Ne pas stocker le token - juste retourner le succès
-//     if (response.user) {
-//       console.log('✅ Registration successful - user not logged in automatically');
-      
-//       // Retourner seulement les infos d'inscription sans connexion automatique
-//       return { 
-//         success: true, 
-//         user: response.user,
-//         message: 'Inscription réussie. Veuillez vous connecter.'
-//       };
-//     } else {
-//       throw new Error('Réponse d\'inscription invalide');
-//     }
-//   } catch (error) {
-//     console.error('❌ Registration error:', error);
-    
-//     // S'assurer que rien n'est stocké en cas d'erreur
-//     localStorage.removeItem('authToken');
-//     localStorage.removeItem('user');
-//     setToken(null);
-//     setUser(null);
-    
-//     throw error;
-//   } finally {
-//     setLoading(false);
-//   }
-// };
-//   const logout = () => {
-//     console.log('🔓 Logging out...');
-    
-//     // Nettoyer localStorage
-//     localStorage.removeItem('authToken');
-//     localStorage.removeItem('user');
-    
-//     // Nettoyer le state
-//     setToken(null);
-//     setUser(null);
-    
-//     console.log('✅ Logout completed');
-//   };
-
-//   const isAuthenticated = () => {
-//     return !!(user && token);
-//   };
-
-//   const isAdmin = () => {
-//     return user?.role === 'admin';
-//   };
-
-//   const isMedecin = () => {
-//     return user?.role === 'medecin';
-//   };
-
-//   const isPatient = () => {
-//     return user?.role === 'patient';
-//   };
-
-//   const value = {
-//     user,
-//     token,
-//     loading,
-//     login,
-//     register,
-//     logout,
-//     isAuthenticated,
-//     isAdmin,
-//     isMedecin,
-//     isPatient,
-//   };
-
-//   return (
-//     <AuthContext.Provider value={value}>
-//       {children}
-//     </AuthContext.Provider>
-//   );
-// };
-
-// export const useAuth = () => {
-//   const context = useContext(AuthContext);
-//   if (!context) {
-//     throw new Error('useAuth must be used within an AuthProvider');
-//   }
-//   return context;
-// };
 // frontend/src/context/AuthContext.js
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
@@ -292,112 +103,172 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Login classique
-  const login = async (email, password) => {
-    try {
-      console.log('🔐 AuthContext: Starting login process');
+// AuthContext.js - Fonction login modifiée
+
+const login = async (email, password) => {
+  try {
+    console.log('🔐 AuthContext: Starting login for:', email);
+    
+    const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ email, password })
+    });
+
+    console.log('📡 Login response status:', response.status);
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('❌ Login error response:', errorData);
+      throw new Error(errorData.message || 'Erreur de connexion');
+    }
+
+    const data = await response.json();
+    console.log('✅ Login response data:', data);
+    console.log('📋 Login details:', {
+      success: data.success,
+      requires2FA: data.requires2FA,
+      userRole: data.user?.role,
+      hasToken: !!data.token,
+      hasTempToken: !!data.tempToken
+    });
+
+    // ✅ Si connexion directe réussie (pas de 2FA requis)
+    if (data.success && !data.requires2FA && data.token) {
+      console.log('🎉 Direct login successful - storing tokens');
       
-      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.message || 'Erreur de connexion');
-      }
-
-      console.log('✅ AuthContext: Login response received', data);
-
-      // Si 2FA requis, retourner les infos sans mettre à jour l'état
-      if (data.requires2FA) {
-        console.log('🔐 AuthContext: 2FA required');
-        return data;
-      }
-
-      // Connexion normale - stocker les données
+      // Stocker les tokens pour connexion directe
       localStorage.setItem('authToken', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       
+      // Mettre à jour le contexte
       setToken(data.token);
       setUser(data.user);
-
-      console.log('✅ AuthContext: Login successful');
-      return data;
-
-    } catch (error) {
-      console.error('❌ AuthContext: Login failed:', error);
-      throw error;
-    }
-  };
-
-  // Vérification 2FA
-  const verify2FA = async (tempToken, code, isSetup = false) => {
-    try {
-      console.log('🔐 AuthContext: Starting 2FA verification');
+      // setIsAuthenticated(true);
       
-      const response = await fetch(`${API_BASE_URL}/api/auth/verify-2fa`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ tempToken, code, isSetup }),
-      });
+      console.log('✅ AuthContext updated for direct login');
+    }
+    // ✅ Si 2FA requis (médecins)
+    else if (data.success && data.requires2FA) {
+      console.log('🔐 2FA required - not storing permanent tokens yet');
+      // Ne pas stocker les tokens permanents - attendre la vérification 2FA
+      // Les tokens seront stockés après vérification 2FA réussie
+    }
 
-      const data = await response.json();
+    return data;
 
-      if (!data.success) {
-        throw new Error(data.message || 'Code 2FA invalide');
-      }
+  } catch (error) {
+    console.error('❌ AuthContext login error:', error);
+    throw error;
+  }
+};
 
-      // Stocker les données après vérification 2FA réussie
+// ✅ Fonction verify2FA modifiée pour stocker les tokens après vérification
+const verify2FA = async (tempToken, code, isSetup = false) => {
+  try {
+    console.log('🔐 AuthContext: Verifying 2FA code');
+    console.log('📝 Verify2FA params:', {
+      hasTempToken: !!tempToken,
+      code: code.substring(0, 2) + '****',
+      isSetup
+    });
+    
+    const response = await fetch(`${API_BASE_URL}/api/auth/verify-2fa`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${tempToken}`
+      },
+      body: JSON.stringify({ code, isSetup })
+    });
+
+    console.log('📡 Verify2FA response status:', response.status);
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('❌ Verify2FA error response:', errorData);
+      throw new Error(errorData.message || 'Code 2FA invalide');
+    }
+
+    const data = await response.json();
+    console.log('✅ Verify2FA response data:', data);
+
+    // ✅ Après vérification 2FA réussie, stocker les tokens permanents
+    if (data.success && data.token) {
+      console.log('🎉 2FA verification successful - storing permanent tokens');
+      
       localStorage.setItem('authToken', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       
+      // Mettre à jour le contexte
       setToken(data.token);
       setUser(data.user);
-
-      console.log('✅ AuthContext: 2FA verification successful');
-      return data;
-
-    } catch (error) {
-      console.error('❌ AuthContext: 2FA verification failed:', error);
-      throw error;
-    }
-  };
-
-  // Génération du QR Code 2FA
-  const generate2FA = async (email) => {
-    try {
-      console.log('🔐 AuthContext: Generating 2FA QR Code');
+      // setIsAuthenticated(true);
       
-      const response = await fetch(`${API_BASE_URL}/api/auth/generate-2fa`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.message || 'Erreur génération QR Code');
-      }
-
-      console.log('✅ AuthContext: QR Code generated');
-      return data;
-
-    } catch (error) {
-      console.error('❌ AuthContext: QR Code generation failed:', error);
-      throw error;
+      console.log('✅ AuthContext updated after 2FA verification');
     }
-  };
 
+    return data;
+
+  } catch (error) {
+    console.error('❌ AuthContext 2FA verification error:', error);
+    throw error;
+  }
+};
+
+  
+// AuthContext.js - Fonction generate2FA corrigée
+
+const generate2FA = async (email) => {
+  try {
+    console.log('🔐 AuthContext: Generating 2FA QR Code for email:', email);
+    
+    const response = await fetch(`${API_BASE_URL}/api/auth/generate-2fa`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token || 'no-token-needed-for-generation'}`
+      },
+      body: JSON.stringify({ email })
+    });
+
+    console.log('📡 Generate2FA Response status:', response.status);
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('❌ Generate2FA Response error:', errorData);
+      throw new Error(errorData.message || 'Erreur lors de la génération du QR Code');
+    }
+
+    const data = await response.json();
+    console.log('📡 Generate2FA Response data:', data);
+
+    // ✅ FIX: Ne pas vérifier tempToken car il n'est pas retourné par cette route
+    // Vérifier seulement les données essentielles du QR Code
+    if (!data.success || !data.qrCode || !data.secret) {
+      console.error('❌ AuthContext: QR Code data incomplete:', data);
+      throw new Error('Données QR Code incomplètes (qrCode ou secret manquant)');
+    }
+
+    console.log('✅ AuthContext: QR Code generation successful');
+    
+    // ✅ FIX: Retourner les données avec un tempToken généré côté client si nécessaire
+    // ou utiliser une approche différente pour gérer le token temporaire
+    return {
+      qrCode: data.qrCode,
+      secret: data.secret,
+      backupCodes: data.backupCodes,
+      // Utiliser un token temporaire pour la session de configuration
+      tempToken: `temp_${Date.now()}_${email}` // Token temporaire pour cette session
+    };
+    
+  } catch (error) {
+    console.error('❌ AuthContext: QR Code generation failed:', error);
+    throw error;
+  }
+};
   // Désactiver 2FA
   const disable2FA = async (password) => {
     try {

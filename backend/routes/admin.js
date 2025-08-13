@@ -5,6 +5,7 @@ const router = express.Router();
 const authMiddleware = require('../middleware/authMiddleware');
 const adminController = require('../controllers/adminController');
 
+
 // Middleware pour vérifier que l'utilisateur est admin
 const isAdmin = (req, res, next) => {
   if (!req.user) {

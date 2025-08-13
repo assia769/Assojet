@@ -2,10 +2,9 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/database');
-const { protect, requireDoctorOrAdmin } = require('../middleware/auth'); // ✅ Utiliser le bon fichier
+const { protect, requireDoctorOrAdmin } = require('../middleware/auth'); 
 
-const upload = require('../middleware/upload'); // Assurez-vous que ce fichier existe
-const path = require('path');
+const upload = require('../middleware/upload'); 
 const fs = require('fs');
 const PDFDocument = require('pdfkit');
 
@@ -13,7 +12,232 @@ const PDFDocument = require('pdfkit');
 // Option 1: Utiliser les middlewares du fichier auth.js
 router.use(protect, requireDoctorOrAdmin);
 
+// backend/routes/auth.js - Modification de la route login
 
+// ✅ Route de login modifiée pour gérer la 2FA seulement pour les médecins
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email et mot de passe requis'
+      });
+    }
+
+    console.log('🔐 Login attempt for:', email);
+
+    // Vérifier l'utilisateur
+    const userResult = await pool.query(
+      'SELECT * FROM Utilisateur WHERE email = $1',
+      [email]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({
+        success: false,
+        message: 'Identifiants invalides'
+      });
+    }
+
+    const user = userResult.rows[0];
+
+    // Vérifier le mot de passe
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({
+        success: false,
+        message: 'Identifiants invalides'
+      });
+    }
+
+    console.log('✅ Password valid for user:', user.role);
+
+    // ✅ MODIFICATION: Vérifier si 2FA requis SEULEMENT pour les médecins
+    const isMedecin = user.role === 'medecin';
+    
+    if (isMedecin) {
+      console.log('👨‍⚕️ User is a doctor - checking 2FA requirement');
+      
+      // Pour les médecins, vérifier si 2FA est activé
+      if (user.twofa_enabled) {
+        console.log('🔐 Doctor has 2FA enabled - requiring verification');
+        
+        // Générer token temporaire pour vérification 2FA
+        const tempToken = jwt.sign(
+          { 
+            userId: user.id_u, 
+            email: user.email,
+            requiresVerification: true,
+            role: user.role
+          },
+          process.env.JWT_SECRET,
+          { expiresIn: '10m' }
+        );
+
+        return res.json({
+          success: true,
+          requires2FA: true,
+          tempToken,
+          user: {
+            id: user.id_u,
+            nom: user.nom,
+            prenom: user.prenom,
+            email: user.email,
+            role: user.role,
+            twofa_enabled: user.twofa_enabled
+          },
+          message: 'Veuillez entrer votre code 2FA'
+        });
+      } else {
+        console.log('🔧 Doctor does not have 2FA - requiring setup');
+        
+        // Médecin sans 2FA - forcer la configuration
+        const tempToken = jwt.sign(
+          { 
+            userId: user.id_u, 
+            email: user.email,
+            requiresSetup: true,
+            role: user.role
+          },
+          process.env.JWT_SECRET,
+          { expiresIn: '15m' }
+        );
+
+        return res.json({
+          success: true,
+          requires2FA: true,
+          tempToken,
+          user: {
+            id: user.id_u,
+            nom: user.nom,
+            prenom: user.prenom,
+            email: user.email,
+            role: user.role,
+            twofa_enabled: false
+          },
+          message: 'Configuration 2FA requise pour les médecins'
+        });
+      }
+    } else {
+      console.log('👤 User is not a doctor - allowing direct login');
+      
+      // ✅ POUR LES NON-MÉDECINS: Connexion directe sans 2FA
+      const token = jwt.sign(
+        { 
+          userId: user.id_u,
+          email: user.email,
+          role: user.role
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      const userData = {
+        id: user.id_u,
+        nom: user.nom,
+        prenom: user.prenom,
+        email: user.email,
+        role: user.role,
+        telephone: user.telephone,
+        photo: user.photo
+      };
+
+      console.log('✅ Direct login successful for non-doctor');
+
+      return res.json({
+        success: true,
+        requires2FA: false, // ✅ Pas de 2FA pour les non-médecins
+        token,
+        user: userData,
+        message: 'Connexion réussie'
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur lors de la connexion'
+    });
+  }
+});
+
+// ✅ Route alternative pour bypass 2FA (si nécessaire)
+router.post('/login-bypass-2fa', async (req, res) => {
+  try {
+    const { email, password, bypassReason } = req.body;
+
+    console.log('⚠️ 2FA Bypass attempt for:', email, 'Reason:', bypassReason);
+
+    // Vérifications similaires...
+    const userResult = await pool.query(
+      'SELECT * FROM Utilisateur WHERE email = $1',
+      [email]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({
+        success: false,
+        message: 'Identifiants invalides'
+      });
+    }
+
+    const user = userResult.rows[0];
+
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({
+        success: false,
+        message: 'Identifiants invalides'
+      });
+    }
+
+    // ✅ Permettre bypass seulement pour les non-médecins
+    if (user.role === 'medecin') {
+      return res.status(403).json({
+        success: false,
+        message: '2FA obligatoire pour les médecins'
+      });
+    }
+
+    // Connexion directe pour non-médecins
+    const token = jwt.sign(
+      { 
+        userId: user.id_u,
+        email: user.email,
+        role: user.role
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    const userData = {
+      id: user.id_u,
+      nom: user.nom,
+      prenom: user.prenom,
+      email: user.email,
+      role: user.role,
+      telephone: user.telephone,
+      photo: user.photo
+    };
+
+    res.json({
+      success: true,
+      token,
+      user: userData,
+      message: 'Connexion bypass réussie'
+    });
+
+  } catch (error) {
+    console.error('❌ Bypass login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur'
+    });
+  }
+});
 // Dashboard - Statistiques générales
 router.get('/dashboard', async (req, res) => {
   try {

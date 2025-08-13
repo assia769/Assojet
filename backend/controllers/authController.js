@@ -24,111 +24,109 @@ const generateBackupCodes = () => {
   return codes;
 };
 
-// Login classique
+
 const login = async (req, res) => {
   try {
-    console.log('🔐 Login attempt started');
-    
-    // Validation des entrées
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      console.log('❌ Validation errors:', errors.array());
+    const { email, password } = req.body;
+
+    if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Données invalides',
-        errors: errors.array()
+        message: 'Email et mot de passe requis'
       });
     }
 
-    const { email, password } = req.body;
-    console.log('📧 Login attempt for email:', email);
+    console.log('🔐 Login attempt for:', email);
 
-    // Rechercher l'utilisateur
-    const userQuery = `
-      SELECT id_u, nom, prenom, email, password, role, twofa_enabled, twofa_secret
-      FROM Utilisateur 
-      WHERE email = $1
-    `;
-    
-    const result = await pool.query(userQuery, [email]);
+    // Vérifier l'utilisateur
+    const userResult = await pool.query(
+      'SELECT * FROM Utilisateur WHERE email = $1',
+      [email]
+    );
 
-    if (result.rows.length === 0) {
-      console.log('❌ User not found');
+    if (userResult.rows.length === 0) {
       return res.status(401).json({
         success: false,
-        message: 'Email ou mot de passe incorrect'
+        message: 'Identifiants invalides'
       });
     }
 
-    const user = result.rows[0];
-    console.log('👤 User found:', { id: user.id_u, email: user.email, role: user.role });
+    const user = userResult.rows[0];
 
     // Vérifier le mot de passe
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      console.log('❌ Invalid password');
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
       return res.status(401).json({
         success: false,
-        message: 'Email ou mot de passe incorrect'
+        message: 'Identifiants invalides'
       });
     }
 
-    console.log('✅ Password valid');
+    console.log('✅ Password valid for user:', user.role);
 
-    // Vérifier si l'utilisateur est médecin et si 2FA est activé
-    if (user.role === 'medecin' && user.twofa_enabled) {
-      console.log('🔐 2FA required for doctor');
+    // Préparer les données utilisateur standard
+    const userData = {
+      id: user.id_u,
+      nom: user.nom,
+      prenom: user.prenom,
+      email: user.email,
+      role: user.role,
+      telephone: user.telephone,
+      photo: user.photo,
+      twofa_enabled: user.twofa_enabled || false
+    };
+
+    // ✅ Vérifier si 2FA requis SEULEMENT pour les médecins
+    const isMedecin = user.role === 'medecin';
+    
+    if (isMedecin) {
+      console.log('👨‍⚕️ User is a doctor - requiring 2FA');
       
-      // Générer un token temporaire pour la vérification 2FA
+      // Générer token temporaire pour 2FA
       const tempToken = jwt.sign(
         { 
           userId: user.id_u, 
           email: user.email,
           role: user.role,
-          requires2FA: true
+          requiresVerification: true
         },
         process.env.JWT_SECRET,
-        { expiresIn: '10m' } // Token temporaire de 10 minutes
+        { expiresIn: '15m' }
       );
 
       return res.json({
         success: true,
         requires2FA: true,
         tempToken,
-        message: 'Veuillez entrer votre code 2FA'
+        user: userData, // ✅ IMPORTANT: Inclure les données utilisateur
+        message: user.twofa_enabled 
+          ? 'Veuillez entrer votre code 2FA' 
+          : 'Configuration 2FA requise pour les médecins'
+      });
+    } else {
+      console.log('👤 User is not a doctor - allowing direct login');
+      
+      // ✅ POUR LES NON-MÉDECINS: Connexion directe sans 2FA
+      const token = jwt.sign(
+        { 
+          userId: user.id_u,
+          email: user.email,
+          role: user.role
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      console.log('✅ Direct login successful for non-doctor');
+
+      return res.json({
+        success: true,
+        requires2FA: false, // ✅ Pas de 2FA pour les non-médecins
+        token,
+        user: userData, // ✅ IMPORTANT: Inclure les données utilisateur
+        message: 'Connexion réussie'
       });
     }
-
-    // Si pas de 2FA requis ou pas médecin, connexion normale
-    const token = jwt.sign(
-      { 
-        userId: user.id_u,
-        email: user.email,
-        role: user.role
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
-    );
-
-    // Mettre à jour la dernière connexion
-    await pool.query(
-      'UPDATE Utilisateur SET date_derniere_connexion = NOW() WHERE id_u = $1',
-      [user.id_u]
-    );
-
-    console.log('✅ Login successful');
-
-    res.json({
-      success: true,
-      token,
-      user: {
-        id: user.id_u,
-        nom: user.nom,
-        prenom: user.prenom,
-        email: user.email,
-        role: user.role
-      }
-    });
 
   } catch (error) {
     console.error('❌ Login error:', error);
@@ -138,86 +136,85 @@ const login = async (req, res) => {
     });
   }
 };
-
-// Générer le QR Code pour 2FA
 const generateTwoFactorQR = async (req, res) => {
   try {
-    const { email } = req.body;
-    
-    if (!email) {
+    // 1️⃣ Vérification des erreurs de validation
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
       return res.status(400).json({
         success: false,
-        message: 'Email requis'
+        message: 'Erreur de validation',
+        errors: errors.array()
       });
     }
 
-    // Vérifier que l'utilisateur existe et est médecin
-    const userQuery = `
-      SELECT id_u, nom, prenom, email, role, twofa_enabled 
-      FROM Utilisateur 
-      WHERE email = $1 AND role = 'medecin'
-    `;
-    
-    const result = await pool.query(userQuery, [email]);
+    const { email } = req.body;
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Médecin non trouvé'
-      });
+    // 2️⃣ Vérifier que l'email est présent
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email manquant' });
     }
 
-    const user = result.rows[0];
-
-    // Générer un secret pour 2FA
-    const secret = speakeasy.generateSecret({
-      name: `Cabinet Médical - Dr. ${user.prenom} ${user.nom}`,
-      issuer: 'Cabinet Médical Premium',
-      length: 32
-    });
-
-    // Générer des codes de backup
-    const backupCodes = generateBackupCodes();
-
-    // Sauvegarder le secret temporairement (sera confirmé lors de la vérification)
-    await pool.query(
-      'UPDATE Utilisateur SET twofa_secret = $1, twofa_backup_codes = $2 WHERE id_u = $3',
-      [secret.base32, backupCodes, user.id_u]
+    // 3️⃣ Vérifier que l’utilisateur existe en base
+    const { rows } = await pool.query(
+      'SELECT id_u FROM Utilisateur WHERE email = $1 LIMIT 1',
+      [email]
     );
 
-    // Générer le QR Code
-    const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url);
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
+    }
 
-    console.log('✅ 2FA QR Code generated for user:', user.email);
+    // 4️⃣ Générer un secret 2FA
+    const secret = speakeasy.generateSecret({
+      name: `VotreApp (${email})`
+    });
 
-    res.json({
+    // 5️⃣ Générer le QR Code
+    let qrCodeDataURL;
+    try {
+      qrCodeDataURL = await QRCode.toDataURL(secret.otpauth_url);
+    } catch (err) {
+      console.error('Erreur génération QR Code:', err);
+      return res.status(500).json({
+        success: false,
+        message: 'Erreur lors de la génération du QR Code'
+      });
+    }
+
+    // 6️⃣ Sauvegarder le secret dans la base
+    await pool.query(
+      'UPDATE Utilisateur SET twofa_secret = $1 WHERE email = $2',
+      [secret.base32, email]
+    );
+
+    // 7️⃣ Réponse
+    return res.json({
       success: true,
-      qrCode: qrCodeUrl,
-      secret: secret.base32,
-      backupCodes: backupCodes,
-      message: 'QR Code généré avec succès'
+      qrCode: qrCodeDataURL,
+      secret: secret.base32
     });
 
   } catch (error) {
-    console.error('❌ Generate 2FA QR error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erreur lors de la génération du QR Code'
-    });
+    console.error('Erreur interne generateTwoFactorQR:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur interne' });
   }
 };
 
-// Vérifier le code 2FA
+// Fonction verify2FA améliorée
 const verifyTwoFactor = async (req, res) => {
   try {
-    const { tempToken, code, isSetup = false } = req.body;
+    const { code, isSetup = false } = req.body;
+    const authHeader = req.headers.authorization;
 
-    if (!tempToken || !code) {
-      return res.status(400).json({
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
         success: false,
-        message: 'Token temporaire et code requis'
+        message: 'Token temporaire requis'
       });
     }
+
+    const tempToken = authHeader.substring(7);
 
     // Vérifier le token temporaire
     let decoded;
@@ -230,28 +227,27 @@ const verifyTwoFactor = async (req, res) => {
       });
     }
 
-    // Récupérer l'utilisateur
-    const userQuery = `
-      SELECT id_u, nom, prenom, email, role, twofa_secret, twofa_enabled, twofa_backup_codes
-      FROM Utilisateur 
-      WHERE id_u = $1
-    `;
-    
-    const result = await pool.query(userQuery, [decoded.userId]);
+    console.log('🔐 Verifying 2FA for user:', decoded.email);
 
-    if (result.rows.length === 0) {
+    // Récupérer l'utilisateur
+    const userResult = await pool.query(
+      'SELECT * FROM Utilisateur WHERE id_u = $1',
+      [decoded.userId]
+    );
+
+    if (userResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
         message: 'Utilisateur non trouvé'
       });
     }
 
-    const user = result.rows[0];
+    const user = userResult.rows[0];
 
     if (!user.twofa_secret) {
       return res.status(400).json({
         success: false,
-        message: '2FA non configuré'
+        message: 'Secret 2FA non configuré'
       });
     }
 
@@ -260,74 +256,61 @@ const verifyTwoFactor = async (req, res) => {
       secret: user.twofa_secret,
       encoding: 'base32',
       token: code,
-      window: 2 // Permet une tolérance de ±2 intervalles de temps
+      window: 2 // Permettre 2 fenêtres de temps
     });
 
-    // Si le code normal ne fonctionne pas, vérifier les codes de backup
-    let isBackupCode = false;
-    if (!verified && user.twofa_backup_codes && user.twofa_backup_codes.length > 0) {
-      const backupIndex = user.twofa_backup_codes.indexOf(code.toUpperCase());
-      if (backupIndex !== -1) {
-        isBackupCode = true;
-        // Supprimer le code de backup utilisé
-        const updatedBackupCodes = user.twofa_backup_codes.filter((_, index) => index !== backupIndex);
-        await pool.query(
-          'UPDATE Utilisateur SET twofa_backup_codes = $1 WHERE id_u = $2',
-          [updatedBackupCodes, user.id_u]
-        );
-      }
-    }
-
-    if (!verified && !isBackupCode) {
-      return res.status(401).json({
+    if (!verified) {
+      console.log('❌ Invalid 2FA code provided');
+      return res.status(400).json({
         success: false,
         message: 'Code 2FA invalide'
       });
     }
 
-    // Si c'est la première configuration, activer le 2FA
-    if (isSetup && !user.twofa_enabled) {
+    console.log('✅ 2FA code verified successfully');
+
+    // Si c'est une première configuration, activer 2FA
+    if (isSetup) {
       await pool.query(
         'UPDATE Utilisateur SET twofa_enabled = true WHERE id_u = $1',
         [user.id_u]
       );
-      console.log('✅ 2FA enabled for user:', user.email);
+      console.log('🎉 2FA enabled for user');
     }
 
     // Générer le token final
     const finalToken = jwt.sign(
-      { 
+      {
         userId: user.id_u,
         email: user.email,
         role: user.role
       },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+      { expiresIn: '24h' }
     );
 
-    // Mettre à jour la dernière connexion
-    await pool.query(
-      'UPDATE Utilisateur SET date_derniere_connexion = NOW() WHERE id_u = $1',
-      [user.id_u]
-    );
+    const userData = {
+      id: user.id_u,
+      nom: user.nom,
+      prenom: user.prenom,
+      email: user.email,
+      role: user.role,
+      telephone: user.telephone,
+      photo: user.photo,
+      twofa_enabled: true
+    };
 
-    console.log('✅ 2FA verification successful');
+    console.log('✅ 2FA verification complete');
 
     res.json({
       success: true,
       token: finalToken,
-      user: {
-        id: user.id_u,
-        nom: user.nom,
-        prenom: user.prenom,
-        email: user.email,
-        role: user.role
-      },
-      message: isBackupCode ? 'Connexion avec code de backup réussie' : 'Vérification 2FA réussie'
+      user: userData,
+      message: isSetup ? '2FA configuré avec succès' : '2FA vérifié avec succès'
     });
 
   } catch (error) {
-    console.error('❌ 2FA verification error:', error);
+    console.error('❌ Verify 2FA error:', error);
     res.status(500).json({
       success: false,
       message: 'Erreur lors de la vérification 2FA'
