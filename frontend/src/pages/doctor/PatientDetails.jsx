@@ -21,6 +21,7 @@ const PatientDetails = () => {
   const [patientData, setPatientData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('informations');
+  const [user] = useState([]);
 
   useEffect(() => {
     loadPatientDetails();
@@ -135,8 +136,19 @@ const PatientDetails = () => {
           <div className="flex items-center">
             <img
               className="h-20 w-20 rounded-full"
-              src={patient.photo || '/api/placeholder/80/80'}
-              alt=""
+              // src={patient.photo || '/api/placeholder/80/80'}
+             src={user.photo ? `http://localhost:5000${user.photo}` : '/default-avatar.png'}
+                      alt={`${user.nom || ''} ${user.prenom || ''}`}
+                      style={{ 
+                        width: '50px', 
+                        height: '50px', 
+                        borderRadius: '50%', 
+                        objectFit: 'cover',
+                        border: '2px solid #ddd'
+                      }}
+                      onError={(e) => {
+                        e.target.src = '/default-avatar.png';
+                      }}
             />
             <div className="ml-6">
               <h3 className="text-xl font-bold text-gray-900">

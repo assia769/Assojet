@@ -111,17 +111,130 @@ class PatientService {
     }
   }
 
-  // Documents - Télécharger un document
+// Documents - Télécharger un document (VERSION CORRIGÉE)
   async downloadDocument(documentId) {
     try {
-      const response = await api.get(`/patient/documents/${documentId}/download`);
-      return response.data;
+      console.log('🔄 Téléchargement du document:', documentId);
+      
+      if (!documentId) {
+        throw new Error('ID du document manquant');
+      }
+
+      // Configuration pour recevoir un blob (fichier binaire)
+      const response = await api.get(`/patient/documents/${documentId}/download`, {
+        responseType: 'blob', // ✅ Important pour recevoir le PDF en binaire
+        timeout: 60000, // Timeout de 60 secondes pour la génération PDF
+        headers: {
+          'Accept': 'application/pdf'
+        }
+      });
+
+      console.log('✅ Réponse reçue');
+      console.log('📦 Type de contenu:', response.headers['content-type']);
+      console.log('📦 Taille du fichier:', response.headers['content-length'], 'bytes');
+
+      // Vérifier que c'est bien un PDF
+      if (!response.headers['content-type']?.includes('application/pdf')) {
+        console.warn('⚠️ Type MIME inattendu:', response.headers['content-type']);
+      }
+
+      // Extraire le nom de fichier du header Content-Disposition
+      let filename = `document_medical_${documentId}.pdf`;
+      const disposition = response.headers['content-disposition'];
+      
+      if (disposition) {
+        console.log('📋 Content-Disposition:', disposition);
+        
+        // Plusieurs patterns pour extraire le filename
+        const patterns = [
+          /filename\*?=['"]?([^'"\s]+)['"]?/i,
+          /filename=['"]([^'"]+)['"]/i,
+          /filename=([^;\s]+)/i
+        ];
+        
+        for (const pattern of patterns) {
+          const match = disposition.match(pattern);
+          if (match && match[1]) {
+            filename = decodeURIComponent(match[1].replace(/['"]/g, ''));
+            break;
+          }
+        }
+      }
+
+      console.log('📄 Nom de fichier final:', filename);
+
+      // Vérifier que nous avons bien reçu des données
+      if (!response.data || response.data.size === 0) {
+        throw new Error('Aucune donnée reçue du serveur');
+      }
+
+      // Créer un blob à partir de la réponse
+      const blob = new Blob([response.data], { 
+        type: 'application/pdf' 
+      });
+
+      console.log('📦 Blob créé, taille:', blob.size, 'bytes');
+
+      // Créer une URL temporaire pour le téléchargement
+      const url = window.URL.createObjectURL(blob);
+
+      // Créer un lien de téléchargement et le déclencher
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename; // Utiliser download au lieu de setAttribute
+      link.style.display = 'none';
+      
+      // Ajouter au DOM, cliquer, puis supprimer
+      document.body.appendChild(link);
+      
+      // Déclencher le téléchargement
+      link.click();
+      
+      // Nettoyer immédiatement
+      document.body.removeChild(link);
+
+      // Nettoyer l'URL temporaire après un délai
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+        console.log('🧹 URL temporaire nettoyée');
+      }, 2000);
+
+      console.log('✅ Téléchargement initié avec succès pour:', filename);
+      
+      return {
+        success: true,
+        filename: filename,
+        size: blob.size,
+        type: 'application/pdf'
+      };
+
     } catch (error) {
-      console.error('Erreur lors du téléchargement:', error);
-      throw new Error(error.response?.data?.message || 'Erreur lors du téléchargement');
+      console.error('❌ Erreur lors du téléchargement:', error);
+      
+      // Messages d'erreur plus précis selon le type d'erreur
+      let errorMessage = 'Erreur lors du téléchargement du document';
+      
+      if (error.code === 'ECONNABORTED' || error.code === 'TIMEOUT') {
+        errorMessage = 'Le téléchargement a pris trop de temps. Le document est peut-être volumineux, veuillez réessayer.';
+      } else if (error.code === 'NETWORK_ERROR' || error.code === 'ERR_NETWORK') {
+        errorMessage = 'Erreur de réseau. Vérifiez votre connexion internet.';
+      } else if (error.response?.status === 400) {
+        errorMessage = 'Demande invalide. Vérifiez l\'ID du document.';
+      } else if (error.response?.status === 401 || error.response?.status === 403) {
+        errorMessage = 'Accès non autorisé à ce document.';
+      } else if (error.response?.status === 404) {
+        errorMessage = 'Document non trouvé.';
+      } else if (error.response?.status === 500) {
+        errorMessage = 'Erreur du serveur lors de la génération du document.';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      throw new Error(errorMessage);
     }
   }
-
   // Messages - Récupérer mes messages
   async getMyMessages() {
     try {

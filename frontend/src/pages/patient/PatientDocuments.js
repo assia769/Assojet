@@ -1,3 +1,4 @@
+// PatientDocuments.js - Version corrigée
 import React, { useState, useEffect } from 'react';
 import { 
   DocumentTextIcon, 
@@ -23,6 +24,7 @@ const PatientDocuments = () => {
     setLoading(true);
     try {
       const docs = await patientService.getMyDocuments();
+      console.log('Documents récupérés:', docs); // Debug
       setDocuments(docs);
     } catch (error) {
       console.error('Erreur chargement documents:', error);
@@ -33,34 +35,112 @@ const PatientDocuments = () => {
 
   const handleDownload = async (documentId, filename) => {
     try {
-      const data = await patientService.downloadDocument(documentId);
-      // Si l'API renvoie une URL de téléchargement
-      if (data.downloadUrl) {
-        const link = document.createElement('a');
-        link.href = data.downloadUrl;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+      console.log('🔄 Téléchargement du document:', documentId, filename);
+      
+      // Vérification que l'ID du document existe
+      if (!documentId) {
+        console.error('❌ ID du document manquant');
+        alert('Erreur: ID du document manquant');
         return;
       }
-      // Sinon, si c’est un Blob (à adapter selon backend)
-      if (data instanceof Blob) {
-        const url = window.URL.createObjectURL(data);
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', filename);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        window.URL.revokeObjectURL(url);
-        return;
+      
+      // Indication visuelle du téléchargement en cours
+      const button = document.activeElement;
+      const originalText = button.textContent;
+      button.textContent = 'Téléchargement...';
+      button.disabled = true;
+      
+      try {
+        // Appel du service de téléchargement
+        const result = await patientService.downloadDocument(documentId);
+        
+        console.log('✅ Téléchargement réussi:', result);
+        
+        // Message de succès optionnel
+        if (result.success) {
+          // Vous pouvez ajouter ici une notification de succès
+          console.log('📄 Fichier téléchargé:', result.filename);
+        }
+        
+      } finally {
+        // Restaurer le bouton dans tous les cas
+        if (button) {
+          button.textContent = originalText;
+          button.disabled = false;
+        }
       }
-      console.error('Format de téléchargement inattendu');
+      
     } catch (error) {
-      console.error('Erreur téléchargement document:', error);
+      console.error('❌ Erreur téléchargement document:', error);
+      
+      // Messages d'erreur plus conviviaux
+      let userMessage = 'Une erreur est survenue lors du téléchargement.';
+      
+      if (error.message.includes('non trouvé')) {
+        userMessage = 'Ce document n\'existe pas ou n\'est plus disponible.';
+      } else if (error.message.includes('non autorisé')) {
+        userMessage = 'Vous n\'avez pas l\'autorisation d\'accéder à ce document.';
+      } else if (error.message.includes('réseau')) {
+        userMessage = 'Problème de connexion. Vérifiez votre réseau et réessayez.';
+      } else if (error.message.includes('serveur')) {
+        userMessage = 'Erreur du serveur. Contactez l\'assistance technique.';
+      } else if (error.message) {
+        userMessage = error.message;
+      }
+      
+      alert(userMessage);
+      
+      // Restaurer le bouton en cas d'erreur
+      const button = document.activeElement;
+      if (button) {
+        button.textContent = button.textContent.replace('Téléchargement...', 'Télécharger');
+        button.disabled = false;
+      }
     }
   };
+
+  // Fonction pour générer un PDF simple côté client
+  const generatePDF = (documentData, filename) => {
+    // Création d'un contenu HTML pour le document
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>${filename}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
+            .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+            .title { color: #2563eb; font-size: 24px; font-weight: bold; }
+            .subtitle { color: #666; font-size: 14px; margin-top: 5px; }
+            .content { white-space: pre-wrap; }
+            .info { background: #f8f9fa; padding: 10px; border-left: 4px solid #2563eb; margin: 10px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="title">${getDocumentTypeLabel(documentData.type_fichier || documentData.type)}</div>
+            <div class="subtitle">Cabinet Médical - ${new Date().toLocaleDateString('fr-FR')}</div>
+          </div>
+          <div class="info">
+            <strong>Fichier:</strong> ${filename}<br>
+            <strong>Date de création:</strong> ${new Date(documentData.date_creation || documentData.created_at).toLocaleDateString('fr-FR')}<br>
+            ${documentData.doctor_nom ? `<strong>Médecin:</strong> Dr. ${documentData.doctor_nom} ${documentData.doctor_prenom || ''}<br>` : ''}
+          </div>
+          <div class="content">
+            ${documentData.contenu || documentData.content || 'Contenu du document médical...'}
+          </div>
+        </body>
+      </html>
+    `;
+    
+    // Ouvrir dans une nouvelle fenêtre pour impression/sauvegarde PDF
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    printWindow.print();
+  };
+  
   const getDocumentIcon = (type) => {
     switch (type?.toLowerCase()) {
       case 'prescription':
@@ -97,7 +177,7 @@ const PatientDocuments = () => {
 
   const filteredDocuments = documents.filter(doc => {
     if (filter === 'all') return true;
-    return doc.type?.toLowerCase() === filter;
+    return doc.type_fichier?.toLowerCase() === filter || doc.type?.toLowerCase() === filter;
   });
 
   const documentTypes = [
@@ -149,7 +229,7 @@ const PatientDocuments = () => {
             <div className="ml-3">
               <p className="text-sm font-medium text-gray-600">Prescriptions</p>
               <p className="text-2xl font-bold text-gray-900">
-                {documents.filter(d => d.type === 'prescription').length}
+                {documents.filter(d => (d.type_fichier || d.type) === 'prescription').length}
               </p>
             </div>
           </div>
@@ -163,7 +243,7 @@ const PatientDocuments = () => {
             <div className="ml-3">
               <p className="text-sm font-medium text-gray-600">Ordonnances</p>
               <p className="text-2xl font-bold text-gray-900">
-                {documents.filter(d => d.type === 'ordonnance').length}
+                {documents.filter(d => (d.type_fichier || d.type) === 'ordonnance').length}
               </p>
             </div>
           </div>
@@ -177,7 +257,7 @@ const PatientDocuments = () => {
             <div className="ml-3">
               <p className="text-sm font-medium text-gray-600">Analyses</p>
               <p className="text-2xl font-bold text-gray-900">
-                {documents.filter(d => d.type === 'analyse').length}
+                {documents.filter(d => (d.type_fichier || d.type) === 'analyse').length}
               </p>
             </div>
           </div>
@@ -221,48 +301,48 @@ const PatientDocuments = () => {
         ) : (
           <div className="divide-y divide-gray-200">
             {filteredDocuments.map((document) => (
-              <div key={document.id} className="p-6">
+              <div key={document.id_fich || document.id} className="p-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
                     {/* Icône du document */}
                     <div className="flex-shrink-0">
                       <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                        <span className="text-2xl">{getDocumentIcon(document.type)}</span>
+                        <span className="text-2xl">{getDocumentIcon(document.type_fichier || document.type)}</span>
                       </div>
                     </div>
                     
                     {/* Informations du document */}
                     <div className="flex-1 min-w-0">
                       <h3 className="text-lg font-medium text-gray-900 truncate">
-                        {document.title || 'Document médical'}
+                        {document.nom_fichier || document.title || 'Document médical'}
                       </h3>
                       
                       <div className="mt-1 flex items-center text-sm text-gray-600">
                         <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-xs font-medium">
-                          {getDocumentTypeLabel(document.type)}
+                          {getDocumentTypeLabel(document.type_fichier || document.type)}
                         </span>
                         
                         {document.doctor_nom && (
                           <>
                             <span className="mx-2">•</span>
                             <UserIcon className="h-4 w-4 mr-1" />
-                            Dr. {document.doctor_nom} {document.doctor_prenom}
+                            Dr. {document.doctor_nom} {document.doctor_prenom || ''}
                           </>
                         )}
                       </div>
                       
                       <div className="mt-1 flex items-center text-sm text-gray-500">
                         <CalendarIcon className="h-4 w-4 mr-1" />
-                        {new Date(document.created_at).toLocaleDateString('fr-FR', {
+                        {new Date(document.date_creation || document.created_at).toLocaleDateString('fr-FR', {
                           year: 'numeric',
                           month: 'long',
                           day: 'numeric'
                         })}
                       </div>
                       
-                      {document.description && (
+                      {(document.contenu || document.description) && (
                         <p className="mt-2 text-sm text-gray-600 line-clamp-2">
-                          {document.description}
+                          {(document.contenu || document.description).substring(0, 150)}...
                         </p>
                       )}
                     </div>
@@ -272,7 +352,10 @@ const PatientDocuments = () => {
                   <div className="flex-shrink-0 ml-4">
                     <div className="flex space-x-2">
                       <button
-                        onClick={() => handleDownload(document.id, document.filename)}
+                        onClick={() => handleDownload(
+                          document.id_fich || document.id, 
+                          document.nom_fichier || document.filename || `document_${document.id_fich || document.id}.pdf`
+                        )}
                         className="inline-flex items-center px-3 py-1 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 transition-colors"
                       >
                         <ArrowDownTrayIcon className="h-4 w-4 mr-1" />

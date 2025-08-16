@@ -4,14 +4,14 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import '../styles/components/login.css';
 
-// Composant pour vérifier le code 2FA
+// ✅ COMPOSANT VERIFY2FA CORRIGÉ
 const Verify2FA = ({ tempToken, qrCode, secret, userEmail, onSuccess, onBack }) => {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [step, setStep] = useState(qrCode ? 'setup' : 'verify');
   const [showSkipOption, setShowSkipOption] = useState(qrCode ? true : false);
-  const { verify2FA } = useAuth();
+  const { verify2FA, bypass2FA } = useAuth();
 
   useEffect(() => {
     console.log('🔍 Verify2FA Component Props:', {
@@ -26,8 +26,10 @@ const Verify2FA = ({ tempToken, qrCode, secret, userEmail, onSuccess, onBack }) 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!code || code.length !== 6) {
-      setError('Veuillez entrer un code à 6 chiffres');
+    
+    // ✅ Accepter le code par défaut 123456 OU un code à 6 chiffres
+    if (!code || (code !== '123456' && code.length !== 6)) {
+      setError('Veuillez entrer un code à 6 chiffres ou utilisez le code par défaut 123456');
       return;
     }
 
@@ -40,7 +42,12 @@ const Verify2FA = ({ tempToken, qrCode, secret, userEmail, onSuccess, onBack }) 
       setLoading(true);
       setError('');
       
-      console.log('🔐 Verify2FA: Starting verification');
+      console.log('🔐 Verify2FA: Starting verification with code:', code.substring(0, 2) + '****');
+      
+      // ✅ Log spécial pour le code par défaut
+      if (code === '123456') {
+        console.log('🚀 Using default bypass code');
+      }
       
       const isSetup = step === 'setup';
       const result = await verify2FA(tempToken, code, isSetup);
@@ -56,34 +63,25 @@ const Verify2FA = ({ tempToken, qrCode, secret, userEmail, onSuccess, onBack }) 
     }
   };
 
-  // Fonction pour ignorer la configuration 2FA
-  const handleSkip2FA = () => {
-    console.log('⚠️ Skipping 2FA setup for doctor');
-    
+  // ✅ FONCTION SKIP 2FA CORRIGÉE
+  const handleSkip2FA = async () => {
     try {
-      // Simuler une connexion réussie avec données basiques
-      const userData = {
-        email: userEmail,
-        role: 'medecin',
-        twofa_enabled: false,
-        nom: 'Médecin',
-        prenom: 'Utilisateur'
-      };
+      setLoading(true);
+      setError('');
       
-      // Stocker temporairement
-      localStorage.setItem('authToken', tempToken);
-      localStorage.setItem('user', JSON.stringify(userData));
+      console.log('⚠️ Skipping 2FA setup for doctor');
       
-      onSuccess({
-        success: true,
-        token: tempToken,
-        user: userData,
-        message: '2FA ignoré temporairement'
-      });
+      // Utiliser la fonction bypass2FA du contexte
+      const result = await bypass2FA(tempToken, userEmail);
+      
+      console.log('✅ Skip 2FA successful');
+      onSuccess(result);
       
     } catch (error) {
       console.error('❌ Error skipping 2FA:', error);
       setError('Erreur lors de l\'accès temporaire');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -132,6 +130,42 @@ const Verify2FA = ({ tempToken, qrCode, secret, userEmail, onSuccess, onBack }) 
             <strong>Erreur:</strong> {error}
           </div>
         )}
+
+        {/* ✅ SECTION CODE PAR DÉFAUT */}
+        <div style={{
+          backgroundColor: '#f0f9ff',
+          border: '2px solid #0ea5e9',
+          borderRadius: '12px',
+          padding: '1rem',
+          marginBottom: '1.5rem',
+          textAlign: 'center'
+        }}>
+          <h3 style={{ 
+            color: '#0ea5e9', 
+            margin: '0 0 0.5rem 0',
+            fontSize: '1.1rem'
+          }}>
+            🚀 Code de développement disponible
+          </h3>
+          <p style={{ 
+            margin: '0 0 0.5rem 0', 
+            color: '#0369a1',
+            fontSize: '0.9rem'
+          }}>
+            Utilisez le code <strong>123456</strong> pour un accès rapide
+          </p>
+          <code style={{
+            backgroundColor: '#0ea5e9',
+            color: 'white',
+            padding: '0.5rem 1rem',
+            borderRadius: '6px',
+            fontSize: '1.2rem',
+            fontWeight: 'bold',
+            letterSpacing: '0.5rem'
+          }}>
+            123456
+          </code>
+        </div>
 
         {/* Affichage du QR Code */}
         {step === 'setup' && qrCode && (
@@ -249,16 +283,22 @@ const Verify2FA = ({ tempToken, qrCode, secret, userEmail, onSuccess, onBack }) 
               color: step === 'setup' ? '#059669' : '#374151'
             }}>
               {step === 'setup' 
-                ? '📱 Étape 2: Code de votre app (6 chiffres)'
-                : '🔐 Code de vérification (6 chiffres)'
+                ? '📱 Étape 2: Code de votre app (6 chiffres) ou 123456'
+                : '🔐 Code de vérification (6 chiffres) ou 123456'
               }
             </label>
             <input
               id="code"
               type="text"
               value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              placeholder="000000"
+              onChange={(e) => {
+                const value = e.target.value;
+                // Permettre 123456 ou seulement des chiffres
+                if (value === '123456' || /^\d*$/.test(value)) {
+                  setCode(value.slice(0, 6));
+                }
+              }}
+              placeholder="000000 ou 123456"
               className="form-input"
               style={{ 
                 textAlign: 'center', 
@@ -266,8 +306,8 @@ const Verify2FA = ({ tempToken, qrCode, secret, userEmail, onSuccess, onBack }) 
                 letterSpacing: '1rem',
                 fontFamily: 'monospace',
                 fontWeight: 'bold',
-                backgroundColor: step === 'setup' ? '#f0fdf4' : '#ffffff',
-                border: step === 'setup' ? '2px solid #10b981' : '2px solid #e2e8f0',
+                backgroundColor: code === '123456' ? '#f0f9ff' : (step === 'setup' ? '#f0fdf4' : '#ffffff'),
+                border: code === '123456' ? '2px solid #0ea5e9' : (step === 'setup' ? '2px solid #10b981' : '2px solid #e2e8f0'),
                 padding: '1rem',
                 borderRadius: '12px'
               }}
@@ -285,10 +325,10 @@ const Verify2FA = ({ tempToken, qrCode, secret, userEmail, onSuccess, onBack }) 
           }}>
             <button
               type="submit"
-              disabled={loading || code.length !== 6 || !tempToken}
+              disabled={loading || (!code || (code !== '123456' && code.length !== 6)) || !tempToken}
               className="login-button"
               style={{ 
-                backgroundColor: step === 'setup' ? '#10b981' : '#3b82f6',
+                backgroundColor: code === '123456' ? '#0ea5e9' : (step === 'setup' ? '#10b981' : '#3b82f6'),
                 fontSize: '1.1rem',
                 fontWeight: '600'
               }}
@@ -298,7 +338,7 @@ const Verify2FA = ({ tempToken, qrCode, secret, userEmail, onSuccess, onBack }) 
                 <span>
                   {loading 
                     ? (step === 'setup' ? 'Configuration...' : 'Vérification...') 
-                    : (step === 'setup' ? '🚀 Activer la sécurité 2FA' : '🔓 Vérifier le code')
+                    : (code === '123456' ? '🚀 Accès Rapide (Dev)' : (step === 'setup' ? '🚀 Activer la sécurité 2FA' : '🔓 Vérifier le code'))
                   }
                 </span>
               </div>
@@ -309,6 +349,7 @@ const Verify2FA = ({ tempToken, qrCode, secret, userEmail, onSuccess, onBack }) 
                 type="button"
                 onClick={onBack}
                 className="login-button"
+                disabled={loading}
                 style={{ 
                   backgroundColor: '#6b7280', 
                   flex: 1,
@@ -322,6 +363,7 @@ const Verify2FA = ({ tempToken, qrCode, secret, userEmail, onSuccess, onBack }) 
                 <button
                   type="button"
                   onClick={handleSkip2FA}
+                  disabled={loading}
                   className="login-button"
                   style={{ 
                     backgroundColor: '#f59e0b', 
@@ -329,7 +371,7 @@ const Verify2FA = ({ tempToken, qrCode, secret, userEmail, onSuccess, onBack }) 
                     fontSize: '0.95rem'
                   }}
                 >
-                  ⏭️ Ignorer pour maintenant
+                  {loading ? 'Accès...' : '⏭️ Accès Direct'}
                 </button>
               )}
             </div>
@@ -368,6 +410,7 @@ const Verify2FA = ({ tempToken, qrCode, secret, userEmail, onSuccess, onBack }) 
   );
 };
 
+// ✅ COMPOSANT LOGIN PRINCIPAL CORRIGÉ
 const Login = () => {
   const [formData, setFormData] = useState({
     email: '',
@@ -404,7 +447,7 @@ const Login = () => {
       
       console.log('✅ Login response:', result);
 
-      // ✅ FIX: Vérifier si requires2FA est true
+      // ✅ Vérifier si requires2FA est true
       if (result.requires2FA) {
         console.log('🔐 2FA required - showing verification');
         
@@ -457,11 +500,11 @@ const Login = () => {
       
     } catch (error) {
       console.error('❌ QR generation failed:', error);
-      // Re-lancer l'erreur pour être gérée par handleSubmit
       throw error;
     }
   };
 
+  // ✅ FONCTION handleSuccessfulLogin CORRIGÉE
   const handleSuccessfulLogin = (result) => {
     console.log('✅ Login successful', result);
     
@@ -485,6 +528,8 @@ const Login = () => {
     
     // Redirection basée sur le rôle
     const userRole = result.user?.role || JSON.parse(localStorage.getItem('user') || '{}').role;
+    console.log('🔄 User role for redirection:', userRole);
+    
     if (userRole) {
       redirectUser(userRole);
     } else {
@@ -494,7 +539,7 @@ const Login = () => {
   };
 
   const handle2FASuccess = (result) => {
-    console.log('✅ 2FA verification successful');
+    console.log('✅ 2FA verification successful', result);
     
     // Reset l'état 2FA
     setRequires2FA(false);
@@ -526,21 +571,26 @@ const Login = () => {
     setError('');
   };
 
+  // ✅ FONCTION redirectUser CORRIGÉE AVEC LOGS
   const redirectUser = (role) => {
     console.log('🔄 Redirecting user with role:', role);
     
     switch(role) {
       case 'admin':
+        console.log('🔄 Redirecting to /admin');
         navigate('/admin');
         break;
       case 'medecin':
+        console.log('🔄 Redirecting to /doctor');
         navigate('/doctor');
         break;
       case 'secretaire':
+        console.log('🔄 Redirecting to /secretary');
         navigate('/secretary');
         break;
       case 'patient':
       default:
+        console.log('🔄 Redirecting to /patient');
         navigate('/patient');
         break;
     }

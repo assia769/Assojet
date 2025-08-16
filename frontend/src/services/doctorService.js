@@ -121,13 +121,24 @@ class DoctorService {
 
   // Calendrier et rendez-vous
   async getAppointments(startDate, endDate) {
-    try {
-      const response = await api.get(`/doctor/appointments?start=${startDate}&end=${endDate}`);
-      return response.data;
-    } catch (error) {
-      throw error;
+  try {
+    console.log(`📅 Récupération RDV: ${startDate} -> ${endDate}`);
+    
+    const response = await api.get(`/doctor/appointments?start=${startDate}&end=${endDate}`);
+    
+    console.log('✅ RDV reçus:', response.data);
+    
+    // Gérer les deux formats de réponse possibles
+    if (response.data.success) {
+      return response.data.data; // Nouveau format avec success: true
+    } else {
+      return response.data; // Format direct (si pas d'enveloppement)
     }
+  } catch (error) {
+    console.error('❌ Erreur récupération RDV:', error);
+    throw error;
   }
+}
 
   async getTodayAppointments() {
     try {
@@ -218,42 +229,8 @@ class DoctorService {
     }
   }
 
-  // Messagerie
-  async getMessages(page = 1, limit = 20) {
-    try {
-      const response = await api.get(`/doctor/messages?page=${page}&limit=${limit}`);
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  async sendMessage(messageData) {
-    try {
-      const response = await api.post('/doctor/messages', messageData);
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  async markMessageAsRead(messageId) {
-    try {
-      const response = await api.patch(`/doctor/messages/${messageId}/read`);
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  async getConversation(userId) {
-    try {
-      const response = await api.get(`/doctor/messages/conversation/${userId}`);
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
-  }
+  
+ 
 
   // Statistiques
   async getStatistics(period = 'month') {
@@ -385,6 +362,83 @@ class DoctorService {
       throw error;
     }
   }
+  
+// Messagerie - version corrigée
+async getMessages(page = 1, limit = 20) {
+  try {
+    console.log('📨 Récupération messages...');
+    const response = await api.get(`/doctor/messages?page=${page}&limit=${limit}`);
+    console.log('✅ Messages reçus:', response.data);
+    
+    if (response.data.success) {
+      return response.data;
+    } else {
+      return response.data;
+    }
+  } catch (error) {
+    console.error('❌ Erreur récupération messages:', error);
+    throw error;
+  }
+}
+
+async sendMessage(messageData) {
+  try {
+    console.log('✉️ Envoi message:', messageData);
+    const response = await api.post('/doctor/messages', messageData);
+    console.log('✅ Message envoyé:', response.data);
+    
+    if (response.data.success) {
+      return response.data.data;
+    } else {
+      return response.data;
+    }
+  } catch (error) {
+    console.error('❌ Erreur envoi message:', error);
+    throw error;
+  }
+}
+
+async markMessageAsRead(messageId) {
+  try {
+    console.log('✅ Marquage message lu:', messageId);
+    const response = await api.patch(`/doctor/messages/${messageId}/read`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Erreur marquage lu:', error);
+    throw error;
+  }
+}
+
+async getConversation(userId) {
+  try {
+    console.log('💬 Récupération conversation avec:', userId);
+    const response = await api.get(`/doctor/messages/conversation/${userId}`);
+    console.log('✅ Conversation reçue:', response.data);
+    
+    if (response.data.success) {
+      return response.data;
+    } else {
+      return response.data;
+    }
+  } catch (error) {
+    console.error('❌ Erreur récupération conversation:', error);
+    throw error;
+  }
+}
+
+async searchUsers(query) {
+  try {
+    const response = await api.get(`/doctor/search/users?q=${encodeURIComponent(query)}`);
+    if (response.data.success) {
+      return response.data.users;
+    } else {
+      return response.data;
+    }
+  } catch (error) {
+    console.error('❌ Erreur recherche utilisateurs:', error);
+    throw error;
+  }
+}
 }
 
 export default new DoctorService();

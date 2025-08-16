@@ -634,4 +634,497 @@ router.get('/statistics/patients', async (req, res) => {
   }
 });
 
+// 📅 Route MANQUANTE - Rendez-vous par période (pour le calendrier)
+router.get('/appointments', async (req, res) => {
+  try {
+    const { start, end } = req.query;
+    
+    console.log('📅 Récupération RDV pour:', { start, end, userId: req.user.id });
+
+    if (!start || !end) {
+      return res.status(400).json({
+        success: false,
+        message: 'Les paramètres start et end sont requis'
+      });
+    }
+
+    // Récupérer l'ID médecin à partir de l'utilisateur connecté
+    const doctorResult = await pool.query(
+      'SELECT id_m FROM Medecin WHERE id_u = $1',
+      [req.user.id]
+    );
+
+    if (doctorResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Médecin non trouvé'
+      });
+    }
+
+    const doctorId = doctorResult.rows[0].id_m;
+
+    // Récupérer les rendez-vous avec informations patient
+    const appointments = await pool.query(`
+      SELECT 
+        rv.*,
+        u.nom,
+        u.prenom,
+        u.telephone,
+        u.email,
+        p.id_p as patient_id
+      FROM RendezVous rv
+      JOIN Patient p ON rv.id_patient = p.id_p
+      JOIN Utilisateur u ON p.id_u = u.id_u
+      WHERE rv.id_medecin = $1 
+        AND DATE(rv.date_rend) BETWEEN $2 AND $3
+      ORDER BY rv.date_rend ASC
+    `, [doctorId, start, end]);
+
+    console.log(`✅ Trouvé ${appointments.rows.length} rendez-vous`);
+
+    // Formatter les données pour le frontend
+    const formattedAppointments = appointments.rows.map(apt => ({
+      id: apt.id_r,
+      dateRendezVous: apt.date_rend,
+      statut: apt.statut || 'programme',
+      typeConsultation: apt.type || 'consultation',
+      motif: apt.motif,
+      patient: {
+        id: apt.patient_id,
+        nom: apt.nom,
+        prenom: apt.prenom,
+        telephone: apt.telephone,
+        email: apt.email
+      }
+    }));
+
+    res.json({
+      success: true,
+      data: formattedAppointments
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur récupération rendez-vous:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur lors de la récupération des rendez-vous',
+      error: error.message
+    });
+  }
+});
+
+// 📅 Rendez-vous d'aujourd'hui (route existante améliorée)
+router.get('/appointments/today', async (req, res) => {
+  try {
+    console.log('📅 Récupération RDV aujourd\'hui pour:', req.user.id);
+
+    const doctorResult = await pool.query(
+      'SELECT id_m FROM Medecin WHERE id_u = $1',
+      [req.user.id]
+    );
+
+    if (doctorResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Médecin non trouvé'
+      });
+    }
+
+    const doctorId = doctorResult.rows[0].id_m;
+
+    const todayAppointments = await pool.query(`
+      SELECT 
+        rv.*,
+        u.nom,
+        u.prenom,
+        u.telephone,
+        u.email,
+        p.id_p as patient_id
+      FROM RendezVous rv
+      JOIN Patient p ON rv.id_patient = p.id_p
+      JOIN Utilisateur u ON p.id_u = u.id_u
+      WHERE rv.id_medecin = $1 
+        AND DATE(rv.date_rend) = CURRENT_DATE
+      ORDER BY rv.date_rend ASC
+    `, [doctorId]);
+
+    const formattedAppointments = todayAppointments.rows.map(apt => ({
+      id: apt.id_r,
+      dateRendezVous: apt.date_rend,
+      statut: apt.statut || 'programme',
+      typeConsultation: apt.type || 'consultation',
+      motif: apt.motif,
+      patient: {
+        id: apt.patient_id,
+        nom: apt.nom,
+        prenom: apt.prenom,
+        telephone: apt.telephone,
+        email: apt.email
+      }
+    }));
+
+    res.json({
+      success: true,
+      data: formattedAppointments
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur RDV aujourd\'hui:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur',
+      error: error.message
+    });
+  }
+});
+
+// 📝 Mettre à jour le statut d'un rendez-vous
+router.patch('/appointments/:id/status', async (req, res) => {
+  try {
+    const appointmentId = req.params.id;
+    const { status } = req.body;
+
+    console.log('📝 Mise à jour statut RDV:', { appointmentId, status });
+
+    // Vérifier que le RDV appartient au médecin
+    const doctorResult = await pool.query(
+      'SELECT id_m FROM Medecin WHERE id_u = $1',
+      [req.user.id]
+    );
+
+    if (doctorResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Médecin non trouvé'
+      });
+    }
+
+    const doctorId = doctorResult.rows[0].id_m;
+
+    // Vérifier que le RDV existe et appartient au médecin
+    const appointmentCheck = await pool.query(
+      'SELECT id_r FROM RendezVous WHERE id_r = $1 AND id_medecin = $2',
+      [appointmentId, doctorId]
+    );
+
+    if (appointmentCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Rendez-vous non trouvé'
+      });
+    }
+
+    // Mettre à jour le statut
+    const updateResult = await pool.query(
+      'UPDATE RendezVous SET statut = $1 WHERE id_r = $2 RETURNING *',
+      [status, appointmentId]
+    );
+
+    res.json({
+      success: true,
+      message: 'Statut mis à jour avec succès',
+      data: updateResult.rows[0]
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur mise à jour statut:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur',
+      error: error.message
+    });
+  }
+});
+// 📨 Récupérer tous les messages du médecin - VERSION CORRIGÉE
+router.get('/messages', async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
+    
+    console.log('📨 Récupération messages pour médecin:', req.user.id);
+
+    // Récupérer tous les messages où le médecin est expéditeur ou destinataire
+    const messages = await pool.query(`
+      SELECT 
+        m.*,
+        exp.nom as exp_nom, exp.prenom as exp_prenom, exp.role as exp_role, exp.photo as exp_photo,
+        dest.nom as dest_nom, dest.prenom as dest_prenom, dest.role as dest_role, dest.photo as dest_photo
+      FROM Message m
+      JOIN Utilisateur exp ON m.id_expediteur = exp.id_u
+      JOIN Utilisateur dest ON m.id_destinataire = dest.id_u
+      WHERE m.id_expediteur = $1 OR m.id_destinataire = $1
+      ORDER BY m.date_mess DESC
+      LIMIT $2 OFFSET $3
+    `, [req.user.id, limit, offset]);
+
+    // Compter le total pour la pagination
+    const totalCount = await pool.query(`
+      SELECT COUNT(*) as total
+      FROM Message m
+      WHERE m.id_expediteur = $1 OR m.id_destinataire = $1
+    `, [req.user.id]);
+
+    // Formatter les données selon la vraie structure de la BDD
+    const formattedMessages = messages.rows.map(msg => ({
+      id: msg.id_mess,
+      contenu: msg.contenu,
+      sujet: msg.objet,
+      dateEnvoi: msg.date_mess,
+      lu: msg.lu,
+      expediteur: {
+        id: msg.id_expediteur,
+        nom: msg.exp_nom,
+        prenom: msg.exp_prenom,
+        role: msg.exp_role,
+        photo: msg.exp_photo
+      },
+      destinataire: {
+        id: msg.id_destinataire,
+        nom: msg.dest_nom,
+        prenom: msg.dest_prenom,
+        role: msg.dest_role,
+        photo: msg.dest_photo
+      }
+    }));
+
+    res.json({
+      success: true,
+      messages: formattedMessages,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: parseInt(totalCount.rows[0].total),
+        totalPages: Math.ceil(totalCount.rows[0].total / limit)
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur récupération messages:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur lors de la récupération des messages',
+      error: error.message
+    });
+  }
+});
+
+// 💬 Récupérer une conversation spécifique - VERSION CORRIGÉE
+router.get('/messages/conversation/:userId', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const doctorId = req.user.id;
+    
+    console.log('💬 Récupération conversation:', { doctorId, userId });
+
+    // Vérifier que l'utilisateur existe
+    const userCheck = await pool.query(`
+      SELECT id_u, nom, prenom, role, photo FROM Utilisateur WHERE id_u = $1
+    `, [userId]);
+
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Utilisateur non trouvé'
+      });
+    }
+
+    // Récupérer tous les messages entre le médecin et cet utilisateur
+    const messages = await pool.query(`
+      SELECT 
+        m.*,
+        exp.nom as exp_nom, exp.prenom as exp_prenom, exp.role as exp_role,
+        dest.nom as dest_nom, dest.prenom as dest_prenom, dest.role as dest_role
+      FROM Message m
+      JOIN Utilisateur exp ON m.id_expediteur = exp.id_u
+      JOIN Utilisateur dest ON m.id_destinataire = dest.id_u
+      WHERE 
+        (m.id_expediteur = $1 AND m.id_destinataire = $2) OR 
+        (m.id_expediteur = $2 AND m.id_destinataire = $1)
+      ORDER BY m.date_mess ASC
+    `, [doctorId, userId]);
+
+    const formattedMessages = messages.rows.map(msg => ({
+      id: msg.id_mess,
+      contenu: msg.contenu,
+      sujet: msg.objet,
+      dateEnvoi: msg.date_mess,
+      lu: msg.lu,
+      expediteur: {
+        id: msg.id_expediteur,
+        nom: msg.exp_nom,
+        prenom: msg.exp_prenom,
+        role: msg.exp_role
+      },
+      destinataire: {
+        id: msg.id_destinataire,
+        nom: msg.dest_nom,
+        prenom: msg.dest_prenom,
+        role: msg.dest_role
+      }
+    }));
+
+    res.json({
+      success: true,
+      user: userCheck.rows[0],
+      messages: formattedMessages
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur conversation:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur lors de la récupération de la conversation'
+    });
+  }
+});
+
+// ✉️ Envoyer un message - VERSION CORRIGÉE
+router.post('/messages', async (req, res) => {
+  try {
+    const { destinataireId, contenu, sujet } = req.body;
+    const expediteurId = req.user.id;
+
+    console.log('✉️ Envoi message:', { expediteurId, destinataireId, sujet });
+
+    if (!destinataireId || !contenu) {
+      return res.status(400).json({
+        success: false,
+        message: 'Destinataire et contenu requis'
+      });
+    }
+
+    // Vérifier que le destinataire existe
+    const destinataireCheck = await pool.query(`
+      SELECT id_u FROM Utilisateur WHERE id_u = $1
+    `, [destinataireId]);
+
+    if (destinataireCheck.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Destinataire non trouvé'
+      });
+    }
+
+    // Insérer le message avec les vrais noms de colonnes
+    const newMessage = await pool.query(`
+      INSERT INTO Message (id_expediteur, id_destinataire, contenu, objet, date_mess, lu)
+      VALUES ($1, $2, $3, $4, NOW(), false)
+      RETURNING *
+    `, [expediteurId, destinataireId, contenu, sujet || 'Message médical']);
+
+    // Récupérer les infos complètes du message créé
+    const messageDetails = await pool.query(`
+      SELECT 
+        m.*,
+        exp.nom as exp_nom, exp.prenom as exp_prenom, exp.role as exp_role,
+        dest.nom as dest_nom, dest.prenom as dest_prenom, dest.role as dest_role
+      FROM Message m
+      JOIN Utilisateur exp ON m.id_expediteur = exp.id_u
+      JOIN Utilisateur dest ON m.id_destinataire = dest.id_u
+      WHERE m.id_mess = $1
+    `, [newMessage.rows[0].id_mess]);
+
+    const msg = messageDetails.rows[0];
+    const formattedMessage = {
+      id: msg.id_mess,
+      contenu: msg.contenu,
+      sujet: msg.objet,
+      dateEnvoi: msg.date_mess,
+      lu: msg.lu,
+      expediteur: {
+        id: msg.id_expediteur,
+        nom: msg.exp_nom,
+        prenom: msg.exp_prenom,
+        role: msg.exp_role
+      },
+      destinataire: {
+        id: msg.id_destinataire,
+        nom: msg.dest_nom,
+        prenom: msg.dest_prenom,
+        role: msg.dest_role
+      }
+    };
+
+    res.status(201).json({
+      success: true,
+      message: 'Message envoyé avec succès',
+      data: formattedMessage
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur envoi message:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur lors de l\'envoi du message'
+    });
+  }
+});
+
+// 🔧 REQUÊTE POUR DIAGNOSTIQUER VOTRE SCHÉMA DE BDD
+router.get('/debug/message-schema', async (req, res) => {
+  try {
+    // Vérifier la structure de la table Message
+    const messageSchema = await pool.query(`
+      SELECT column_name, data_type, is_nullable
+      FROM information_schema.columns 
+      WHERE table_name = 'message'
+      ORDER BY ordinal_position;
+    `);
+
+    // Récupérer quelques messages exemple pour voir les données
+    const sampleMessages = await pool.query(`
+      SELECT * FROM Message LIMIT 3
+    `);
+
+    res.json({
+      success: true,
+      schema: messageSchema.rows,
+      samples: sampleMessages.rows
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur debug schema:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur debug',
+      error: error.message
+    });
+  }
+});
+// 🔍 Rechercher des utilisateurs pour nouvelle conversation
+router.get('/search/users', async (req, res) => {
+  try {
+    const { q } = req.query;
+    
+    console.log('🔍 Recherche utilisateurs pour:', q);
+    
+    if (!q || q.length < 2) {
+      return res.json({ success: true, users: [] });
+    }
+
+    const users = await pool.query(`
+      SELECT id_u, nom, prenom, role, email, photo
+      FROM Utilisateur
+      WHERE id_u != $1 
+        AND (nom ILIKE $2 OR prenom ILIKE $2 OR email ILIKE $2)
+      ORDER BY nom, prenom
+      LIMIT 10
+    `, [req.user.id, `%${q}%`]);
+
+    console.log(`✅ Trouvé ${users.rows.length} utilisateurs`);
+
+    res.json({
+      success: true,
+      users: users.rows
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur recherche utilisateurs:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur',
+      error: error.message
+    });
+  }
+});
 module.exports = router;
