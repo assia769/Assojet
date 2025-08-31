@@ -9,8 +9,8 @@ const Verify2FA = ({ tempToken, qrCode, secret, userEmail, onSuccess, onBack }) 
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [step, setStep] = useState(qrCode ? 'setup' : 'verify');
-  const [showSkipOption, setShowSkipOption] = useState(qrCode ? true : false);
+  const [step] = useState(qrCode ? 'setup' : 'verify');
+  const [showSkipOption] = useState(qrCode ? true : false);
   const { verify2FA, bypass2FA } = useAuth();
 
   useEffect(() => {
