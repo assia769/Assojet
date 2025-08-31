@@ -1,3 +1,4 @@
+
 // frontend/src/pages/doctor/PatientsList.js
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
@@ -19,7 +20,7 @@ const PatientsList = () => {
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [user] = useState([]);
+  const [error, setError] = useState(null);
   
   const [pagination, setPagination] = useState({
     page: 1,
@@ -35,15 +36,26 @@ const PatientsList = () => {
   const loadPatients = async () => {
     try {
       setLoading(true);
+      setError(null);
+      
       const response = await DoctorService.getPatientsList({
         search: searchTerm,
         page: pagination.page,
         limit: pagination.limit
       });
-      setPatients(response.patients);
-      setPagination(response.pagination);
+      
+      console.log('✅ Patients chargés:', response);
+      
+      setPatients(response.patients || []);
+      setPagination(prev => ({
+        ...prev,
+        ...response.pagination
+      }));
+      
     } catch (error) {
-      console.error('Erreur chargement patients:', error);
+      console.error('❌ Erreur chargement patients:', error);
+      setError('Erreur lors du chargement des patients');
+      setPatients([]);
     } finally {
       setLoading(false);
     }
@@ -56,7 +68,15 @@ const PatientsList = () => {
 
   const formatDate = (dateString) => {
     if (!dateString) return 'Jamais';
-    return new Date(dateString).toLocaleDateString('fr-FR');
+    try {
+      return new Date(dateString).toLocaleDateString('fr-FR', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch (error) {
+      return 'Date invalide';
+    }
   };
 
   const getGroupeSanguinColor = (groupe) => {
@@ -73,6 +93,21 @@ const PatientsList = () => {
     return colors[groupe] || 'bg-gray-100 text-gray-800';
   };
 
+  // Fonction pour construire l'URL de l'image de profil
+  const getPatientPhotoUrl = (patient) => {
+    if (patient.photo) {
+      // Si l'URL commence déjà par http, la retourner telle quelle
+      if (patient.photo.startsWith('http')) {
+        return patient.photo;
+      }
+      // Sinon, construire l'URL complète
+      const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      return `${baseUrl}${patient.photo}`;
+    }
+    // Image par défaut si pas de photo
+    return '/default-avatar.png';
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -87,6 +122,7 @@ const PatientsList = () => {
         </div>
       </div>
 
+      {/* Barre de recherche */}
       <div className="bg-white shadow rounded-lg">
         <div className="px-4 py-5 sm:p-6">
           <div className="md:flex md:items-center md:justify-between">
@@ -112,38 +148,67 @@ const PatientsList = () => {
               </div>
             </div>
             <div className="mt-4 md:mt-0 md:ml-4">
-              
+              <div className="text-sm text-gray-500">
+                {patients.length > 0 && (
+                  <span>{patients.length} patient{patients.length > 1 ? 's' : ''} trouvé{patients.length > 1 ? 's' : ''}</span>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
+      {/* Affichage d'erreur */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+          <div className="flex">
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">
+                Erreur de chargement
+              </h3>
+              <div className="mt-2 text-sm text-red-700">
+                <p>{error}</p>
+              </div>
+              <div className="mt-3">
+                <button
+                  onClick={loadPatients}
+                  className="bg-red-100 px-3 py-1.5 rounded-md text-sm font-medium text-red-800 hover:bg-red-200"
+                >
+                  Réessayer
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Liste des patients */}
       <div className="bg-white shadow overflow-hidden sm:rounded-md">
         {loading ? (
           <div className="flex items-center justify-center h-32">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="flex items-center space-x-2">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <span className="text-gray-500">Chargement des patients...</span>
+            </div>
           </div>
         ) : patients.length > 0 ? (
           <ul className="divide-y divide-gray-200">
             {patients.map((patient) => (
-              <li key={patient.id_p}>
+              <li key={patient.id_p || patient.id}>
                 <div className="px-4 py-4 flex items-center justify-between hover:bg-gray-50">
                   <div className="flex items-center">
-                    <div className="flex-shrink-0 h-10 w-10">
+                    <div className="flex-shrink-0 h-12 w-12">
                       <img
-                        // className="h-10 w-10 rounded-full"
-                        src={user.photo ? `http://localhost:5000${user.photo}` : '/default-avatar.png'}
-
-                        alt={`${user.nom || ''} ${user.prenom || ''}`}
-                      style={{ 
-                        width: '50px', 
-                        height: '50px', 
-                        borderRadius: '50%', 
-                        objectFit: 'cover',
-                        border: '2px solid #ddd'
-                      }}
-                     
+                        className="h-12 w-12 rounded-full object-cover border-2 border-gray-200"
+                        src={getPatientPhotoUrl(patient)}
+                        alt={`${patient.nom || ''} ${patient.prenom || ''}`}
+                        onError={(e) => {
+                          console.log('❌ Erreur chargement image pour:', patient);
+                          e.target.src = '/default-avatar.png';
+                        }}
+                        onLoad={() => {
+                          console.log('✅ Image chargée pour:', patient.nom, patient.prenom);
+                        }}
                       />
                     </div>
                     <div className="ml-4">
@@ -159,7 +224,7 @@ const PatientsList = () => {
                       </div>
                       <div className="mt-1 flex items-center text-sm text-gray-500">
                         <Mail className="flex-shrink-0 mr-1.5 h-4 w-4" />
-                        {patient.email}
+                        <span className="truncate">{patient.email || 'Email non renseigné'}</span>
                         {patient.telephone && (
                           <>
                             <span className="mx-2">•</span>
@@ -169,22 +234,36 @@ const PatientsList = () => {
                         )}
                       </div>
                       <div className="mt-1 text-sm text-gray-500">
-                        {patient.total_consultations} consultation(s) • 
-                        Dernière visite: {formatDate(patient.derniere_consultation)}
+                        <span className="font-medium">{patient.total_consultations || 0}</span> consultation(s)
+                        {patient.derniere_consultation && (
+                          <>
+                            {' • '}
+                            <span>Dernière visite: {formatDate(patient.derniere_consultation)}</span>
+                          </>
+                        )}
                       </div>
+                      {patient.date_naissance && (
+                        <div className="mt-1 text-xs text-gray-400">
+                          Né(e) le {formatDate(patient.date_naissance)}
+                        </div>
+                      )}
                     </div>
                   </div>
+                  
+                  {/* Actions */}
                   <div className="flex items-center space-x-2">
                     <Link
-                      to={`/doctor/patients/${patient.id_p}`}
-                      className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      to={`/doctor/patients/${patient.id_p || patient.id}`}
+                      className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                      title="Voir les détails du patient"
                     >
                       <Eye className="h-4 w-4 mr-1" />
                       Voir
                     </Link>
                     <Link
-                      to={`/doctor/medical-records/${patient.id_p}`}
-                      className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      to={`/doctor/medical-records/${patient.id_p || patient.id}`}
+                      className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                      title="Consulter le dossier médical"
                     >
                       <FileText className="h-4 w-4 mr-1" />
                       Dossier
@@ -197,17 +276,30 @@ const PatientsList = () => {
         ) : (
           <div className="text-center py-12">
             <User className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">Aucun patient trouvé</h3>
+            <h3 className="mt-2 text-sm font-medium text-gray-900">
+              {searchTerm ? 'Aucun patient trouvé' : 'Aucun patient'}
+            </h3>
             <p className="mt-1 text-sm text-gray-500">
-              {searchTerm ? 'Essayez de modifier vos critères de recherche.' : 'Vous n\'avez pas encore de patients.'}
+              {searchTerm ? 
+                'Essayez de modifier vos critères de recherche.' : 
+                'Vous n\'avez pas encore de patients assignés.'
+              }
             </p>
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="mt-3 inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+              >
+                Effacer la recherche
+              </button>
+            )}
           </div>
         )}
       </div>
 
       {/* Pagination */}
       {pagination.totalPages > 1 && (
-        <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+        <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 rounded-lg shadow">
           <div className="flex-1 flex justify-between sm:hidden">
             <button
               onClick={() => setPagination(prev => ({ ...prev, page: Math.max(1, prev.page - 1) }))}
@@ -243,11 +335,27 @@ const PatientsList = () => {
                   onClick={() => setPagination(prev => ({ ...prev, page: Math.max(1, prev.page - 1) }))}
                   disabled={pagination.page === 1}
                   className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Page précédente"
                 >
                   <ChevronLeft className="h-5 w-5" />
                 </button>
-                {[...Array(pagination.totalPages)].map((_, index) => {
-                  const pageNumber = index + 1;
+                
+                {/* Pages */}
+                {[...Array(Math.min(5, pagination.totalPages))].map((_, index) => {
+                  let pageNumber;
+                  if (pagination.totalPages <= 5) {
+                    pageNumber = index + 1;
+                  } else {
+                    // Logic pour afficher les bonnes pages quand il y en a beaucoup
+                    if (pagination.page <= 3) {
+                      pageNumber = index + 1;
+                    } else if (pagination.page >= pagination.totalPages - 2) {
+                      pageNumber = pagination.totalPages - 4 + index;
+                    } else {
+                      pageNumber = pagination.page - 2 + index;
+                    }
+                  }
+                  
                   return (
                     <button
                       key={pageNumber}
@@ -262,10 +370,12 @@ const PatientsList = () => {
                     </button>
                   );
                 })}
+                
                 <button
                   onClick={() => setPagination(prev => ({ ...prev, page: Math.min(prev.totalPages, prev.page + 1) }))}
                   disabled={pagination.page === pagination.totalPages}
                   className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Page suivante"
                 >
                   <ChevronRight className="h-5 w-5" />
                 </button>

@@ -1,4 +1,4 @@
-// PatientDocuments.js - Version corrigée
+// PatientDocuments.js - Version corrigée avec clés uniques
 import React, { useState, useEffect } from 'react';
 import { 
   DocumentTextIcon, 
@@ -24,7 +24,7 @@ const PatientDocuments = () => {
     setLoading(true);
     try {
       const docs = await patientService.getMyDocuments();
-      console.log('Documents récupérés:', docs); // Debug
+      console.log('Documents récupérés:', docs);
       setDocuments(docs);
     } catch (error) {
       console.error('Erreur chargement documents:', error);
@@ -35,35 +35,28 @@ const PatientDocuments = () => {
 
   const handleDownload = async (documentId, filename) => {
     try {
-      console.log('🔄 Téléchargement du document:', documentId, filename);
+      console.log('Téléchargement du document:', documentId, filename);
       
-      // Vérification que l'ID du document existe
       if (!documentId) {
-        console.error('❌ ID du document manquant');
+        console.error('ID du document manquant');
         alert('Erreur: ID du document manquant');
         return;
       }
       
-      // Indication visuelle du téléchargement en cours
       const button = document.activeElement;
       const originalText = button.textContent;
       button.textContent = 'Téléchargement...';
       button.disabled = true;
       
       try {
-        // Appel du service de téléchargement
         const result = await patientService.downloadDocument(documentId);
+        console.log('Téléchargement réussi:', result);
         
-        console.log('✅ Téléchargement réussi:', result);
-        
-        // Message de succès optionnel
         if (result.success) {
-          // Vous pouvez ajouter ici une notification de succès
-          console.log('📄 Fichier téléchargé:', result.filename);
+          console.log('Fichier téléchargé:', result.filename);
         }
         
       } finally {
-        // Restaurer le bouton dans tous les cas
         if (button) {
           button.textContent = originalText;
           button.disabled = false;
@@ -71,7 +64,7 @@ const PatientDocuments = () => {
       }
       
     } catch (error) {
-      console.error('❌ Erreur téléchargement document:', error);
+      console.error('Erreur téléchargement document:', error);
       
       // Messages d'erreur plus conviviaux
       let userMessage = 'Une erreur est survenue lors du téléchargement.';
@@ -99,48 +92,6 @@ const PatientDocuments = () => {
     }
   };
 
-  // Fonction pour générer un PDF simple côté client
-  const generatePDF = (documentData, filename) => {
-    // Création d'un contenu HTML pour le document
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>${filename}</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
-            .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
-            .title { color: #2563eb; font-size: 24px; font-weight: bold; }
-            .subtitle { color: #666; font-size: 14px; margin-top: 5px; }
-            .content { white-space: pre-wrap; }
-            .info { background: #f8f9fa; padding: 10px; border-left: 4px solid #2563eb; margin: 10px 0; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="title">${getDocumentTypeLabel(documentData.type_fichier || documentData.type)}</div>
-            <div class="subtitle">Cabinet Médical - ${new Date().toLocaleDateString('fr-FR')}</div>
-          </div>
-          <div class="info">
-            <strong>Fichier:</strong> ${filename}<br>
-            <strong>Date de création:</strong> ${new Date(documentData.date_creation || documentData.created_at).toLocaleDateString('fr-FR')}<br>
-            ${documentData.doctor_nom ? `<strong>Médecin:</strong> Dr. ${documentData.doctor_nom} ${documentData.doctor_prenom || ''}<br>` : ''}
-          </div>
-          <div class="content">
-            ${documentData.contenu || documentData.content || 'Contenu du document médical...'}
-          </div>
-        </body>
-      </html>
-    `;
-    
-    // Ouvrir dans une nouvelle fenêtre pour impression/sauvegarde PDF
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-    printWindow.print();
-  };
-  
   const getDocumentIcon = (type) => {
     switch (type?.toLowerCase()) {
       case 'prescription':
@@ -300,8 +251,8 @@ const PatientDocuments = () => {
           </div>
         ) : (
           <div className="divide-y divide-gray-200">
-            {filteredDocuments.map((document) => (
-              <div key={document.id_fich || document.id} className="p-6">
+            {filteredDocuments.map((document, index) => (
+              <div key={`doc-${document.id_fich || document.id}-${index}`} className="p-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
                     {/* Icône du document */}
@@ -333,16 +284,16 @@ const PatientDocuments = () => {
                       
                       <div className="mt-1 flex items-center text-sm text-gray-500">
                         <CalendarIcon className="h-4 w-4 mr-1" />
-                        {new Date(document.date_creation || document.created_at).toLocaleDateString('fr-FR', {
+                        {new Date(document.date_creation || document.created_at || Date.now()).toLocaleDateString('fr-FR', {
                           year: 'numeric',
                           month: 'long',
                           day: 'numeric'
                         })}
                       </div>
                       
-                      {(document.contenu || document.description) && (
+                      {(document.contenu || document.description || document.historique) && (
                         <p className="mt-2 text-sm text-gray-600 line-clamp-2">
-                          {(document.contenu || document.description).substring(0, 150)}...
+                          {(document.contenu || document.description || document.historique || '').substring(0, 150)}...
                         </p>
                       )}
                     </div>

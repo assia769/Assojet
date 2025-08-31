@@ -190,11 +190,11 @@ const PatientAppointments = () => {
                               day: 'numeric'
                             })}
                           </h3>
-                          <span
+                          {/* <span
                             className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(appointment.status)}`}
                           >
                             {getStatusText(appointment.status)}
-                          </span>
+                          </span> */}
                         </div>
                         
                         <div className="mt-1 flex items-center text-sm text-gray-600">

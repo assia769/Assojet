@@ -1,8 +1,57 @@
 import React, { useState, useEffect } from 'react';
 import DoctorService from '../../services/doctorService';
+import * as XLSX from 'xlsx'; // Ajout de la vraie librairie Excel
 
-// Base de données de médicaments (simulation de votre fichier Excel)
-const MEDICAMENTS_DB = [
+// ✅ Vraie fonction de lecture Excel
+const readExcelFile = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        console.log('📊 Fichier Excel chargé:', file.name);
+        
+        // ✅ Utilisation de XLSX pour lire le fichier
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        
+        // Convertir en JSON
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        console.log('📋 Données brutes Excel:', jsonData.slice(0, 5)); // Afficher les 5 premières lignes
+        
+        // ✅ Mapping correct des colonnes Excel
+        const medicaments = jsonData.map((row, index) => {
+          try {
+            return {
+              code: row.CODE || `MED${index}`,
+              nom: row.NOM || row.nom || `Médicament ${index}`,
+              dci: row.DCI1 || row.dci || '',
+              dosage: row.DOSAGE1 || row.dosage || '',
+              unite: row.UNITE_DOSAGE1 || row.unite || '',
+              forme: row.FORME || row.forme || '',
+              dose: `${row.DOSAGE1 || ''}${row.UNITE_DOSAGE1 || ''}`.trim() || 'Non spécifié'
+            };
+          } catch (err) {
+            console.warn(`⚠️ Erreur ligne ${index}:`, err);
+            return null;
+          }
+        }).filter(med => med && med.nom); // Filtrer les entrées nulles ou sans nom
+        
+        console.log(`✅ ${medicaments.length} médicaments traités sur ${jsonData.length} lignes`);
+        resolve(medicaments);
+      } catch (error) {
+        console.error('❌ Erreur parsing Excel:', error);
+        reject(error);
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+};
+
+// Base de données de médicaments par défaut
+const DEFAULT_MEDICAMENTS = [
   { code: "M001", nom: "Paracétamol", dose: "500mg" },
   { code: "M002", nom: "Ibuprofène", dose: "400mg" },
   { code: "M003", nom: "Amoxicilline", dose: "500mg" },
@@ -33,7 +82,9 @@ const PrescriptionManagement = () => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [medicamentSearch, setMedicamentSearch] = useState('');
   const [filteredMedicaments, setFilteredMedicaments] = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(-1); // -1 = aucune, index = suggestions pour ce médicament
+  const [showSuggestions, setShowSuggestions] = useState(-1);
+  const [medicamentsDB, setMedicamentsDB] = useState(DEFAULT_MEDICAMENTS);
+  const [excelLoading, setExcelLoading] = useState(false);
   const [newPrescription, setNewPrescription] = useState({
     patientId: '',
     medicaments: [{ nom: '', dosage: '', frequence: '', duree: '', instructions: '' }]
@@ -114,14 +165,65 @@ const PrescriptionManagement = () => {
     });
   };
 
+  // ✅ Charger fichier Excel avec gestion d'erreurs améliorée
+  const handleExcelUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Vérifier le type de fichier
+    const allowedTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
+      '.xlsx',
+      '.xls'
+    ];
+    
+    const isValidFile = allowedTypes.some(type => 
+      file.type === type || file.name.toLowerCase().endsWith(type)
+    );
+    
+    if (!isValidFile) {
+      alert('⚠️ Veuillez sélectionner un fichier Excel (.xlsx ou .xls)');
+      return;
+    }
+
+    setExcelLoading(true);
+    
+    try {
+      console.log('📂 Traitement fichier:', file.name, 'Taille:', (file.size / 1024 / 1024).toFixed(2), 'MB');
+      
+      const medicaments = await readExcelFile(file);
+      
+      if (medicaments.length === 0) {
+        throw new Error('Aucun médicament trouvé dans le fichier');
+      }
+      
+      setMedicamentsDB(medicaments);
+      console.log(`✅ ${medicaments.length} médicaments chargés depuis Excel`);
+      
+      // Afficher un échantillon des données chargées
+      console.log('📋 Échantillon des médicaments chargés:', medicaments.slice(0, 10));
+      
+      alert(`✅ ${medicaments.length} médicaments chargés avec succès !`);
+    } catch (error) {
+      console.error('❌ Erreur lecture Excel:', error);
+      alert(`❌ Erreur lors de la lecture du fichier Excel: ${error.message}`);
+    } finally {
+      setExcelLoading(false);
+      // Réinitialiser l'input file
+      event.target.value = '';
+    }
+  };
+
   // Recherche de médicaments
   const handleMedicamentSearch = (searchTerm, index) => {
     updateMedicament(index, 'nom', searchTerm);
     
     if (searchTerm.length >= 2) {
-      const filtered = MEDICAMENTS_DB.filter(med =>
+      const filtered = medicamentsDB.filter(med =>
         med.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        med.code.toLowerCase().includes(searchTerm.toLowerCase())
+        (med.code && med.code.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (med.dci && med.dci.toLowerCase().includes(searchTerm.toLowerCase()))
       ).slice(0, 10);
       
       setFilteredMedicaments(filtered);
@@ -139,17 +241,36 @@ const PrescriptionManagement = () => {
     setShowSuggestions(-1);
   };
 
+ // ✅ CORRECTION PRINCIPALE : Fonction generatePDF corrigée
   const generatePDF = async (prescriptionId) => {
     try {
-      const blob = await DoctorService.generatePrescriptionPDF(prescriptionId);
+      console.log('📄 Génération PDF pour prescription ID:', prescriptionId);
+      
+      // ✅ Vérifier que l'ID est valide
+      if (!prescriptionId || prescriptionId === 'undefined') {
+        console.error('❌ ID de prescription invalide:', prescriptionId);
+        alert('Erreur: ID de prescription invalide');
+        return;
+      }
+      
+      // ✅ S'assurer que l'ID est numérique
+      const numericId = parseInt(prescriptionId);
+      if (isNaN(numericId)) {
+        console.error('❌ ID de prescription non numérique:', prescriptionId);
+        alert('Erreur: ID de prescription doit être numérique');
+        return;
+      }
+      
+      const blob = await DoctorService.generatePrescriptionPDF(numericId);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `prescription_${prescriptionId}.pdf`;
+      a.download = `prescription_${numericId}.pdf`;
       a.click();
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('❌ Erreur lors de la génération du PDF:', error);
+      alert('Erreur lors de la génération du PDF: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -165,7 +286,18 @@ const PrescriptionManagement = () => {
     }
 
     try {
+      setLoading(true);
       console.log('📝 Création prescription:', newPrescription);
+      
+      // Utiliser le service pour créer la prescription
+      const result = await DoctorService.createPrescription({
+        patientId: newPrescription.patientId,
+        medicaments: newPrescription.medicaments,
+        diagnostic: 'Prescription médicale',
+        compteRendu: 'Consultation de prescription'
+      });
+      
+      console.log('✅ Prescription créée:', result);
       
       // Réinitialiser le formulaire
       setNewPrescription({
@@ -182,7 +314,9 @@ const PrescriptionManagement = () => {
       alert('Prescription créée avec succès !');
     } catch (error) {
       console.error('❌ Erreur création prescription:', error);
-      alert('Erreur lors de la création de la prescription');
+      alert('Erreur lors de la création de la prescription: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -218,6 +352,46 @@ const PrescriptionManagement = () => {
       </div>
 
       <div style={{ marginBottom: '30px' }}>
+        {/* ✅ Lecteur Excel amélioré */}
+        <div style={{
+          padding: '20px',
+          border: '2px dashed #3498db',
+          borderRadius: '12px',
+          backgroundColor: '#f8f9fa',
+          marginBottom: '20px',
+          textAlign: 'center'
+        }}>
+          <h4 style={{ color: '#2c3e50', marginBottom: '15px' }}>
+            📊 Charger la base de médicaments Excel (CNOPS)
+          </h4>
+          
+          <div style={{ marginBottom: '15px' }}>
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={handleExcelUpload}
+              style={{
+                padding: '10px',
+                border: '1px solid #bdc3c7',
+                borderRadius: '6px',
+                backgroundColor: 'white',
+                marginRight: '10px'
+              }}
+            />
+            
+            {excelLoading && (
+              <span style={{ color: '#3498db', marginLeft: '10px' }}>
+                ⏳ Traitement en cours...
+              </span>
+            )}
+          </div>
+          
+          <div style={{ fontSize: '12px', color: '#7f8c8d' }}>
+            📋 Format attendu: CODE | NOM | DCI1 | DOSAGE1 | UNITE_DOSAGE1 | FORME<br/>
+            📊 {medicamentsDB.length} médicaments disponibles
+          </div>
+        </div>
+
         <label style={{ 
           display: 'block', 
           marginBottom: '8px', 
@@ -277,6 +451,9 @@ const PrescriptionManagement = () => {
               }}>
                 <h4 style={{ color: '#2c3e50', margin: 0 }}>
                   📅 Prescription du {new Date(prescription.dateCreation).toLocaleDateString()}
+                  <small style={{ display: 'block', color: '#7f8c8d', fontSize: '12px' }}>
+                    ID: {prescription.id}
+                  </small>
                 </h4>
                 <button 
                   onClick={() => generatePDF(prescription.id)}
@@ -290,7 +467,7 @@ const PrescriptionManagement = () => {
                     fontSize: '14px'
                   }}
                 >
-                  📄 PDF
+                  📄 Générer PDF
                 </button>
               </div>
               
@@ -349,6 +526,7 @@ const PrescriptionManagement = () => {
         </div>
       )}
 
+      {/* Formulaire de création - reste identique */}
       {showCreateForm && (
         <div style={{
           position: 'fixed',
@@ -494,6 +672,8 @@ const PrescriptionManagement = () => {
                               </div>
                               <div style={{ fontSize: '12px', color: '#7f8c8d' }}>
                                 📋 Code: {med.code} | 💉 Dose: {med.dose}
+                                {med.dci && ` | 🧪 DCI: ${med.dci}`}
+                                {med.forme && ` | 📦 Forme: ${med.forme}`}
                               </div>
                             </div>
                           ))}
@@ -640,7 +820,7 @@ const PrescriptionManagement = () => {
         </div>
       )}
     </div>
-    );
+  );
 };
 
 export default PrescriptionManagement;

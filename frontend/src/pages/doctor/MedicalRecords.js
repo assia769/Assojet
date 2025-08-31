@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import DoctorService from '../../services/doctorService';
+import  './css1.css';
 
 const MedicalRecords = () => {
   const { patientId } = useParams();
@@ -88,7 +89,7 @@ const MedicalRecords = () => {
         <div className="medical-records-content">
           <div className="tabs">
             <div className="tab-content">
-              <div className="medical-history">
+              <div className="section-card medical-history">
                 <h4>Antécédents Médicaux</h4>
                 <div className="history-item">
                   <strong>Allergies:</strong> {medicalRecord?.allergies || 'Aucune'}
@@ -101,7 +102,7 @@ const MedicalRecords = () => {
                 </div>
               </div>
 
-              <div className="consultations-history">
+              <div className="section-card consultations-history">
                 <h4>Historique des Consultations</h4>
                 <div className="consultations-list">
                   {consultations.map(consultation => (
@@ -119,7 +120,7 @@ const MedicalRecords = () => {
                 </div>
               </div>
 
-              <div className="prescriptions-history">
+              <div className="section-card prescriptions-history">
                 <h4>Prescriptions</h4>
                 <div className="prescriptions-list">
                   {prescriptions.map(prescription => (
@@ -139,7 +140,7 @@ const MedicalRecords = () => {
                 </div>
               </div>
 
-              <div className="medical-files">
+              <div className="section-card medical-files">
                 <h4>Fichiers Médicaux</h4>
                 <form onSubmit={handleFileUpload} className="file-upload-form">
                   <input
@@ -163,12 +164,16 @@ const MedicalRecords = () => {
                     <div key={file.id} className="file-item">
                       <span>{file.nom}</span>
                       <span>{file.description}</span>
-                      <button onClick={() => handleDeleteFile(file.id)}>
+                      <div key={file.id_fich} className="file-item">
+                      <button onClick={() => handleDeleteFile(file.id_fich)}>
                         Supprimer
                       </button>
                     </div>
+                 </div>
+
                   ))}
                 </div>
+
               </div>
             </div>
           </div>

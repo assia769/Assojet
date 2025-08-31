@@ -61,6 +61,20 @@ const PatientDetails = () => {
     }
     return age;
   };
+  // Fonction pour construire l'URL de l'image de profil
+  const getPatientPhotoUrl = (patient) => {
+    if (patient.photo) {
+      // Si l'URL commence déjà par http, la retourner telle quelle
+      if (patient.photo.startsWith('http')) {
+        return patient.photo;
+      }
+      // Sinon, construire l'URL complète
+      const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      return `${baseUrl}${patient.photo}`;
+    }
+    // Image par défaut si pas de photo
+    return '/default-avatar.png';
+  };
 
   if (loading) {
     return (
@@ -134,22 +148,18 @@ const PatientDetails = () => {
       <div className="bg-white shadow rounded-lg">
         <div className="px-4 py-5 sm:p-6">
           <div className="flex items-center">
-            <img
-              className="h-20 w-20 rounded-full"
-              // src={patient.photo || '/api/placeholder/80/80'}
-             src={user.photo ? `http://localhost:5000${user.photo}` : '/default-avatar.png'}
-                      alt={`${user.nom || ''} ${user.prenom || ''}`}
-                      style={{ 
-                        width: '50px', 
-                        height: '50px', 
-                        borderRadius: '50%', 
-                        objectFit: 'cover',
-                        border: '2px solid #ddd'
-                      }}
-                      onError={(e) => {
-                        e.target.src = '/default-avatar.png';
-                      }}
-            />
+              <img
+                        className="h-12 w-12 rounded-full object-cover border-2 border-gray-200"
+                        src={getPatientPhotoUrl(patient)}
+                        alt={`${patient.nom || ''} ${patient.prenom || ''}`}
+                        onError={(e) => {
+                          console.log('❌ Erreur chargement image pour:', patient);
+                          e.target.src = '/default-avatar.png';
+                        }}
+                        onLoad={() => {
+                          console.log('✅ Image chargée pour:', patient.nom, patient.prenom);
+                        }}
+                      />
             <div className="ml-6">
               <h3 className="text-xl font-bold text-gray-900">
                 {patient.nom} {patient.prenom}
@@ -274,12 +284,7 @@ const PatientDetails = () => {
                             <p className="text-sm text-gray-700 mt-1">Motif : {consultation.motif}</p>
                             <p className="text-sm text-gray-700">Diagnostic : {consultation.diagnostic}</p>
                           </div>
-                          <Link
-                            to={`/doctor/consultation-details/${consultation.id}`}
-                            className="text-sm text-blue-600 hover:underline"
-                          >
-                            Voir détails
-                          </Link>
+                          
                         </div>
                       </li>
                     );

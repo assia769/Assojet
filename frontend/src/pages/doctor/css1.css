@@ -1,0 +1,282 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
+
+body {
+  font-family: 'Poppins', sans-serif;
+  background: linear-gradient(135deg, #eaf6ff, #f9fdfc);
+  margin: 0;
+  padding: 0;
+  color: #2c3e50;
+}
+
+.medical-records {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: auto;
+}
+
+/* ===== Header ===== */
+.page-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.page-header h2 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #3f8efc;
+}
+
+.patient-info h3 {
+  font-size: 1.4rem;
+  color: #2ecc71;
+  margin-top: 0.5rem;
+}
+
+/* ===== Sections ===== */
+.tab-content {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 2rem;
+}
+
+.section-card {
+  background: #fdfdfd;
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+  position: relative;
+  transition: transform 0.2s ease, box-shadow 0.3s ease;
+}
+
+.section-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px rgba(63,142,252,0.2);
+}
+
+.section-card h4 {
+  font-size: 1.4rem;
+  margin-bottom: 1rem;
+  padding-left: 0.5rem;
+  border-left: 6px solid #3f8efc;
+  color: #34495e;
+}
+/* ===== Inputs dans les sections ===== */
+.section-card input {
+  width: 100%;
+  padding: 0.8rem 1rem;
+  font-size: 0.95rem;
+  border-radius: 12px;
+  border: 1px solid #dfe9ff;
+  outline: none;
+  background: #f9fcff;
+  color: #0dbbda; /* texte turquoise */
+  transition: all 0.3s ease;
+}
+
+/* Placeholder stylé */
+.section-card input::placeholder {
+  color: #8aa9c7;
+  font-style: italic;
+}
+
+/* Focus state (quand l'input est actif) */
+.section-card input:focus {
+  border-color: #0dbbda;
+  background: #ffffff;
+  box-shadow: 0 0 8px rgba(13, 187, 218, 0.3);
+  transform: scale(1.02);
+}
+
+
+/* ===== Items ===== */
+.history-item,
+.consultation-item,
+.prescription-item,
+.file-item {
+  background: #f5faff;
+  border: 1px solid #dfe9ff;
+  padding: 1rem;
+  border-radius: 12px;
+  margin-bottom: 1rem;
+  transition: all 0.2s ease;
+}
+
+.history-item:hover,
+.consultation-item:hover,
+.prescription-item:hover,
+.file-item:hover {
+  background: #eaf4ff;
+  border-color: #3f8efc;
+}
+
+/* ===== Dates ===== */
+.consultation-date,
+.prescription-date {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #3f8efc;
+  margin-bottom: 0.5rem;
+}
+/* ===== Fichiers Médicaux - Full Width Section ===== */
+.medical-files {
+  width: 100%; /* largeur du parent */
+  padding: 3rem 2rem;
+  border-radius: 40px 40px 0 0;
+  background: linear-gradient(135deg, #3f8efc, #2ecc71);
+  color: white;
+  animation: slideUp 0.8s ease-out;
+  box-shadow: 0 -6px 20px rgba(0,0,0,0.15);
+  margin-top: 3rem;
+}
+
+
+
+.medical-files h4 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 2rem;
+  letter-spacing: 1px;
+  color: #1021bb;
+}
+
+/* Animation d'apparition */
+@keyframes slideUp {
+  from {
+    transform: translateY(60px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Formulaire d'upload */
+.file-upload-form {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.file-upload-form input[type="file"],
+.file-upload-form input[type="text"] {
+  padding: 0.8rem;
+  border-radius: 12px;
+  border: none;
+  outline: none;
+  font-size: 0.95rem;
+}
+
+.file-upload-form input[type="text"] {
+  flex: 1;
+  min-width: 220px;
+}
+
+.file-upload-form button {
+  background: #33cf03;
+  color: #3f8efc;
+  font-weight: 700;
+  padding: 0.8rem 1.6rem;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(255,255,255,0.3);
+}
+
+.file-upload-form button:hover {
+  background: #2ecc71;
+  color: white;
+  transform: scale(1.05);
+}
+
+/* Liste des fichiers */
+.files-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.2rem;
+}
+
+.file-item {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255,255,255,0.3);
+  padding: 1rem;
+  border-radius: 16px;
+  backdrop-filter: blur(10px);
+  color: #222;  
+  transition: transform 0.2s ease, background 0.3s ease;
+  animation: fadeIn 0.6s ease;
+}
+.file-item p {
+  color: #222;  /* texte noir/gris foncé */
+}
+
+.file-item:hover {
+  transform: translateY(-6px);
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.file-item span {
+  display: block;
+  margin-bottom: 0.4rem;
+}
+
+/* Bouton supprimer dans les fichiers */
+.file-item button {
+  margin-top: 0.5rem;
+  background: #e74c3c;
+  color: #2d76e5;
+  font-weight: 600;
+  border: none;
+  border-radius: 10px;
+  padding: 0.5rem 1rem;
+  transition: all 0.3s ease;
+}
+
+.file-item button:hover {
+  background: #c0392b;
+  transform: scale(1.05);
+}
+
+/* Fade-in animation for files */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+
+/* ===== Boutons ===== */
+button {
+  cursor: pointer;
+  padding: 0.7rem 1.4rem;
+  border-radius: 10px;
+  border: none;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+/* Bouton Télécharger */
+.file-upload-form button {
+  background: linear-gradient(135deg, #3f8efc, #6bb8ff);
+  color: white;
+  box-shadow: 0 4px 12px rgba(63,142,252,0.3);
+}
+
+.file-upload-form button:hover {
+  background: linear-gradient(135deg, #2d76e5, #3f8efc);
+  transform: scale(1.05);
+}
+
+/* Bouton Supprimer */
+.file-item button {
+  background: linear-gradient(135deg, #e74c3c, #ff7675);
+  color: white;
+  box-shadow: 0 4px 12px rgba(231,76,60,0.3);
+}
+
+.file-item button:hover {
+  background: linear-gradient(135deg, #c0392b, #e74c3c);
+  transform: scale(1.05);
+}

@@ -31,7 +31,7 @@ const DoctorLayout = ({ children }) => {
     { name: 'Patients', href: '/doctor/patients', icon: Users, color: 'from-emerald-500 to-emerald-600' },
     { name: 'Calendrier', href: '/doctor/calendar', icon: Calendar, color: 'from-blue-600 to-cyan-600' },
     { name: 'Consultations', href: '/doctor/consultation', icon: FileText, color: 'from-green-500 to-green-600' },
-    { name: 'Dossiers médicaux', href: '/doctor/medical-records', icon: FileText, color: 'from-teal-500 to-teal-600' },
+    // { name: 'Dossiers médicaux', href: '/doctor/medical-records', icon: FileText, color: 'from-teal-500 to-teal-600' },
     { name: 'Ordonnances', href: '/doctor/prescriptions', icon: Pill, color: 'from-blue-500 to-indigo-600' },
     { name: 'Messagerie', href: '/doctor/messaging', icon: MessageSquare, color: 'from-emerald-600 to-cyan-600' },
     { name: 'Statistiques', href: '/doctor/statistics', icon: BarChart3, color: 'from-green-600 to-emerald-600' },
@@ -383,16 +383,7 @@ const DoctorLayout = ({ children }) => {
             
             {/* Action buttons */}
             <div className="flex items-center space-x-3">
-              {/* Notifications */}
-              <button
-                type="button"
-                className="relative p-3 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500/50 group"
-              >
-                <Bell className="h-5 w-5 transition-transform duration-200 group-hover:rotate-12" />
-                <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 rounded-full flex items-center justify-center animate-bounce-gentle">
-                  <span className="text-xs font-bold text-white">3</span>
-                </span>
-              </button>
+              
 
               {/* Logout */}
               <button
