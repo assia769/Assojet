@@ -2,33 +2,47 @@
 const fs = require('fs');
 const path = require('path');
 
-// Vérification et chargement de l'environnement
+// Chargement des variables d'environnement - Version corrigée pour Railway
 console.log('🔍 Current directory:', process.cwd());
 console.log('🔍 __dirname:', __dirname);
-console.log('🔍 .env file exists:', fs.existsSync('.env'));
-console.log('🔍 .env file path:', path.resolve('.env'));
 
-try {
-  const envContent = fs.readFileSync('.env', 'utf8');
-  console.log('🔍 .env content preview (first 100 chars):', JSON.stringify(envContent.substring(0, 100)));
-  console.log('🔍 .env file size:', envContent.length, 'bytes');
-} catch (error) {
-  console.error('❌ Cannot read .env file:', error.message);
+// Charger dotenv SEULEMENT en développement local
+if (process.env.NODE_ENV !== 'production') {
+  try {
+    const dotenvResult = require('dotenv').config({ path: path.join(__dirname, '.env') });
+    console.log('🔍 dotenv result (development):', dotenvResult);
+  } catch (error) {
+    console.log('ℹ️  .env file not found in development, continuing without it');
+  }
+} else {
+  console.log('🚀 Production mode - using Railway environment variables');
 }
 
-// Chargement des variables d'environnement
-const dotenvResult = require('dotenv').config({ path: path.join(__dirname, '.env') });
-console.log('🔍 dotenv result:', dotenvResult);
-console.log('🔍 JWT_SECRET after dotenv:', process.env.JWT_SECRET ? 'LOADED ✅' : 'NOT LOADED ❌');
-console.log('🔍 All env vars loaded:', Object.keys(process.env).filter(key => key.startsWith('JWT')));
+// Vérification des variables essentielles
+console.log('🔍 JWT_SECRET from environment:', process.env.JWT_SECRET ? 'LOADED ✅' : 'NOT LOADED ❌');
+console.log('🔍 DATABASE_URL from environment:', process.env.DATABASE_URL ? 'LOADED ✅' : 'NOT LOADED ❌');
 
 if (!process.env.JWT_SECRET) {
   console.error('❌ JWT_SECRET is not defined!');
-  console.error('💡 Available environment variables starting with J:', 
-    Object.keys(process.env).filter(key => key.startsWith('J')));
-  process.exit(1);
+  console.error('💡 Available environment variables:', Object.keys(process.env));
+  
+  // En production, on essaie de continuer avec une valeur par défaut (pour le debug)
+  if (process.env.NODE_ENV === 'production') {
+    console.warn('⚠️  Running in production without JWT_SECRET - this will cause authentication issues');
+    // Ne pas quitter en production pour permettre le debug
+  } else {
+    process.exit(1);
+  }
 }
 
+if (!process.env.DATABASE_URL) {
+  console.error('❌ DATABASE_URL is not defined!');
+  if (process.env.NODE_ENV === 'production') {
+    console.warn('⚠️  Running without DATABASE_URL - database connections will fail');
+  } else {
+    process.exit(1);
+  }
+}
 // Imports principaux
 const express = require('express');
 const cors = require('cors');
