@@ -2,17 +2,18 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Copy package files first for better caching
+# Copier les fichiers package d'abord
 COPY backend/package*.json ./
 
-# Install dependencies
+# Copier le fichier .env (s'il existe)
+COPY backend/.env ./.env
+
+# Installer les dépendances
 RUN npm install
 
-# Copy the rest of the backend code
+# Copier le reste du code backend
 COPY backend/ .
 
-# Expose the port
 EXPOSE 3000
 
-# Start the application
 CMD ["npm", "start"]
