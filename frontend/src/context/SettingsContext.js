@@ -1,8 +1,35 @@
 // frontend/src/contexts/SettingsContext.js
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { adminService } from '../services/adminService';
 
 const SettingsContext = createContext();
+
+
+const applySettings = useCallback(() => {
+  const root = document.documentElement;
+  
+  if (settings.dark_mode === true || settings.dark_mode === 'true') {
+    document.body.classList.add('dark');
+    root.classList.add('dark');
+  } else {
+    document.body.classList.remove('dark');
+    root.classList.remove('dark');
+  }
+
+  root.style.setProperty('--font-family', settings.font_family);
+  root.style.setProperty('--font-size', settings.font_size);
+  root.style.setProperty('--primary-color', settings.primary_color);
+
+  const hex = settings.primary_color.replace('#', '');
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  root.style.setProperty('--primary-rgb', `${r}, ${g}, ${b}`);
+
+  document.title = settings.site_name;
+  document.body.style.fontFamily = settings.font_family;
+  document.body.style.fontSize = settings.font_size;
+}, [settings]);
 
 export const useSettings = () => {
   const context = useContext(SettingsContext);
@@ -30,8 +57,8 @@ export const SettingsProvider = ({ children }) => {
 
   // Appliquer les paramètres chaque fois qu'ils changent
   useEffect(() => {
-    applySettings();
-  }, [settings]);
+  applySettings();
+}, [applySettings]);
 
   const loadSettings = async () => {
     try {
