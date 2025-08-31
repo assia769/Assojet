@@ -39,29 +39,25 @@
 
 // module.exports = pool;
 const { Pool } = require('pg');
-require('dotenv').config();
 
+// Utilisez DATABASE_URL directement depuis les variables d'environnement
 const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT || 5432,
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
+  connectionString: process.env.DATABASE_URL,
   
   // Configuration optimisée pour Neon DB
-  max: 3, // Limite basse pour éviter les timeouts
-  min: 0, // Pas de connexions permanentes
-  idleTimeoutMillis: 5000, // Ferme rapidement les connexions
+  max: 3,
+  min: 0,
+  idleTimeoutMillis: 5000,
   connectionTimeoutMillis: 30000,
   acquireTimeoutMillis: 30000,
   
   // SSL obligatoire pour Neon
-  ssl: {
+  ssl: process.env.NODE_ENV === 'production' ? {
     rejectUnauthorized: false
-  }
+  } : false
 });
 
-// Gestionnaire d'erreurs plus silencieux
+// Gestionnaire d'erreurs
 pool.on('error', (err, client) => {
   if (err.message.includes('Connection terminated')) {
     console.log('⚠️ Connexion fermée par Neon (normal)');
@@ -78,6 +74,7 @@ pool.connect()
   })
   .catch(err => {
     console.error('❌ Connection error:', err.message);
+    console.error('💡 DATABASE_URL:', process.env.DATABASE_URL ? 'Exists' : 'Missing');
   });
 
 module.exports = pool;
