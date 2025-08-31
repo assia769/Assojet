@@ -8,7 +8,6 @@ import {
   MessageCircle,
   Bell,
   Plus,
-  User,
   Settings,
   LogOut,
   Menu,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, User, Stethoscope, Calendar, Eye } from 'lucide-react';
+import { Clock, Stethoscope, Calendar, Eye } from 'lucide-react';
 import { secretaryService } from '../../services/secretaryService';
 
 const UpcomingAppointments = () => {

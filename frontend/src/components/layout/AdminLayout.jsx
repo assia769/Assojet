@@ -29,7 +29,6 @@ const AdminLayout = ({ children }) => {
   // Fonction pour obtenir les initiales de l'utilisateur
   const getUserInitials = () => {
     const name = user?.name || user?.nom || user?.email || '';
-    const prenom = user?.prenom || '';
     
     if (user?.nom && user?.prenom) {
       return `${user.nom.charAt(0)}${user.prenom.charAt(0)}`.toUpperCase();

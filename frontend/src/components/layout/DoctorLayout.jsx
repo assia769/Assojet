@@ -10,12 +10,9 @@ import {
   MessageSquare,
   BarChart3,
   Pill,
-  Settings,
   LogOut,
   Menu,
   X,
-  Bell,
-  User,
   ChevronRight,
   Activity
 } from 'lucide-react';
