@@ -11,8 +11,8 @@ export const useAuth = () => {
   return context;
 };
 
-// ✅ Configuration d'URL corrigée
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://assojet-production.up.railway.app';
+// ✅ Configuration d'URL corrigée avec la nouvelle URL Railway
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://assojet-production-19d7.up.railway.app';
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);

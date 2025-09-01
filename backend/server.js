@@ -63,7 +63,7 @@ const corsOptions = {
       "http://localhost:3000",
       "http://localhost:3001", 
       "https://euphonious-tanuki-6e76f4.netlify.app",
-      "https://assojet-production.up.railway.app", // Votre domaine Railway
+      "https://assojet-production-19d7.up.railway.app", // Nouvelle URL Railway
       // Ajouter d'autres domaines si nécessaire
     ];
     
