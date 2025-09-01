@@ -2,7 +2,6 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-COPY backend/.env ./
 
 # Copier les fichiers package d'abord
 COPY backend/package*.json ./
