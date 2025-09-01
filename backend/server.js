@@ -56,7 +56,10 @@ const pool = require('./config/database');
 
 // Middlewares globaux
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://127.0.0.1:3000','/^https:\/\/.*\.netlify\.app$/'],
+  origin: [
+  "http://localhost:3000",
+  "https://euphonious-tanuki-6e76f4.netlify.app"
+],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
