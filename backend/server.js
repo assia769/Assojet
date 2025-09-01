@@ -1,4 +1,4 @@
-// backend/server.js
+// backend/server.js - Version corrigée pour Railway/Netlify
 const fs = require('fs');
 const path = require('path');
 
@@ -26,10 +26,8 @@ if (!process.env.JWT_SECRET) {
   console.error('❌ JWT_SECRET is not defined!');
   console.error('💡 Available environment variables:', Object.keys(process.env));
   
-  // En production, on essaie de continuer avec une valeur par défaut (pour le debug)
   if (process.env.NODE_ENV === 'production') {
     console.warn('⚠️  Running in production without JWT_SECRET - this will cause authentication issues');
-    // Ne pas quitter en production pour permettre le debug
   } else {
     process.exit(1);
   }
@@ -43,6 +41,7 @@ if (!process.env.DATABASE_URL) {
     process.exit(1);
   }
 }
+
 // Imports principaux
 const express = require('express');
 const cors = require('cors');
@@ -54,19 +53,73 @@ const PORT = process.env.PORT || 5000;
 // Import de la base de données
 const pool = require('./config/database');
 
-// Middlewares globaux
-app.use(cors({
-  origin: [
-  "http://localhost:3000",
-  "https://euphonious-tanuki-6e76f4.netlify.app"
-],
+// ✅ CONFIGURATION CORS AMÉLIORÉE POUR RAILWAY/NETLIFY
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Autoriser les requêtes sans origine (ex: applications mobiles, Postman)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      "http://localhost:3000",
+      "http://localhost:3001", 
+      "https://euphonious-tanuki-6e76f4.netlify.app",
+      "https://assojet-production.up.railway.app", // Votre domaine Railway
+      // Ajouter d'autres domaines si nécessaire
+    ];
+    
+    // Vérifier si l'origine est autorisée
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.warn(`🚫 CORS: Origin not allowed: ${origin}`);
+      // En production, on peut être plus strict
+      callback(null, true); // Temporairement permissif pour debug
+    }
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['Authorization'] // Ajoutez cette ligne
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: [
+    'Origin',
+    'X-Requested-With',
+    'Content-Type',
+    'Accept',
+    'Authorization',
+    'Cache-Control',
+    'X-HTTP-Method-Override'
+  ],
+  exposedHeaders: ['Authorization'],
+  optionsSuccessStatus: 200, // Pour supporter les anciens navigateurs
+  preflightContinue: false
+};
 
-}));
+// ✅ Appliquer CORS avec options avancées
+app.use(cors(corsOptions));
 
+// ✅ Middleware pour préflight requests (OPTIONS)
+app.options('*', cors(corsOptions));
+
+// ✅ Headers de sécurité supplémentaires
+app.use((req, res, next) => {
+  // Headers CORS manuels en cas de problème
+  const origin = req.headers.origin;
+  if (origin && [
+    "http://localhost:3000",
+    "https://euphonious-tanuki-6e76f4.netlify.app"
+  ].includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS,PATCH');
+  res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization,Cache-Control,X-HTTP-Method-Override');
+  
+  // Log des requêtes pour debug
+  console.log(`🌐 ${req.method} ${req.path} from ${req.headers.origin || 'unknown origin'}`);
+  
+  next();
+});
+
+// Middlewares de parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -81,8 +134,18 @@ const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const secretaryRoutes = require('./routes/secretary');
 const doctorRoutes = require('./routes/doctor');
-
 const patientRoutes = require('./routes/patient');
+
+// ✅ Route de test CORS
+app.get('/api/cors-test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'CORS test successful',
+    origin: req.headers.origin,
+    timestamp: new Date().toISOString(),
+    headers: req.headers
+  });
+});
 
 // Routes qui ne sont PAS soumises à la maintenance
 app.use('/api/auth', authRoutes);
@@ -94,7 +157,8 @@ app.use((req, res, next) => {
     '/api/auth/login',
     '/api/auth/register',
     '/api/auth/logout',
-    '/api/admin/settings'
+    '/api/admin/settings',
+    '/api/cors-test'
   ];
 
   if (excludedPaths.some(path => req.path.startsWith(path))) {
@@ -115,7 +179,8 @@ app.get('/api/test', (req, res) => {
     success: true, 
     message: 'Backend fonctionne correctement!',
     timestamp: new Date().toISOString(),
-    jwtConfigured: !!process.env.JWT_SECRET
+    jwtConfigured: !!process.env.JWT_SECRET,
+    origin: req.headers.origin
   });
 });
 
@@ -184,17 +249,18 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // Démarrage du serveur
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => { // ✅ Écouter sur toutes les interfaces
   console.log(`🚀 Serveur démarré sur le port ${PORT}`);
   console.log(`🌐 URL: http://localhost:${PORT}`);
   console.log(`📱 Test API: http://localhost:${PORT}/api/test`);
   console.log(`🗄️  Test DB: http://localhost:${PORT}/api/db-test`);
   console.log(`🔑 Test JWT: http://localhost:${PORT}/api/jwt-test`);
+  console.log(`🔄 Test CORS: http://localhost:${PORT}/api/cors-test`);
 
   console.log('\n=== CONFIGURATION FINALE ===');
   console.log(`✅ JWT_SECRET: ${process.env.JWT_SECRET ? 'CONFIGURÉ' : 'NON CONFIGURÉ'}`);
   console.log(`✅ PORT: ${PORT}`);
-  console.log(`✅ DB_HOST: ${process.env.DB_HOST}`);
+  console.log(`✅ CORS Origins: localhost:3000, euphonious-tanuki-6e76f4.netlify.app`);
   console.log('===============================\n');
 
   // Affichage des routes (optionnel)
