@@ -1,5 +1,7 @@
 
-🏥 Plateforme de Gestion pour Cabinets Médicaux
+🏥 Plateforme de Gestion pour Cabinets Médicaux:
+
+
 page d'acueil:
 <img width="1366" height="768" alt="image" src="https://github.com/user-attachments/assets/06cc8a57-12ec-4b23-8bb7-c348eaa5f0d8" />
 <img width="1359" height="584" alt="image" src="https://github.com/user-attachments/assets/11fc5b38-c756-4d8a-9d60-4d437d856c3f" />
@@ -87,8 +89,9 @@ Gain de temps et meilleure organisation.
 Accès rapide et sécurisé aux informations patients.
 
 Outil moderne, robuste et évolutif.
+
+
 🌐 Démonstration
 
 🔗 Voir le projet en ligne: https://lighthearted-belekoy-411494.netlify.app/
 
-Outil moderne, robuste et évolutif.
